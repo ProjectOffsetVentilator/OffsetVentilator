@@ -1,0 +1,3 @@
+*.pptx diff=zip
+*.xlsx diff=zip
+*.docx diff=zip
