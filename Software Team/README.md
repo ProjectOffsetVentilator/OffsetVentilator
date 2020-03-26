@@ -5,7 +5,11 @@ Main code and documentation repository for the Helpful Engineering Offset Ventil
 
 ## Resources and Learning 
 
-Safer alternative to delay() https://www.arduino.cc/reference/en/language/functions/time/millis/
+Alternative to delay() https://www.arduino.cc/reference/en/language/functions/time/millis/
+
+Hobby Servo control https://www.youtube.com/watch?v=kUHmYKWwuWs
+
+Hobby servo teardown https://youtu.be/OcgF4lYRHnc?t=47
 
 # License
 CERN Open Hardware Licence Version 2 - Permissive
