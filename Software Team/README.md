@@ -1,5 +1,4 @@
-# OffsetVentilator
-Main code and documentation repository for the Helpful Engineering Offset Ventilator project.
+# OffsetVentilator - Software
 
 ## Google drive files
 
