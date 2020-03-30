@@ -2,6 +2,8 @@
 
 ## Google drive files
 
+Code specifications (draft) https://docs.google.com/document/d/1Vykw4cnE0Rh32LuTK7wvXugAaXiXU2Qhy337S_AlgQQ/edit?usp=sharing (Anyone can comment. Contact @ammondayley on slack for edit privileges)
+
 ## Resources and Learning 
 
 Alternative to delay() https://www.arduino.cc/reference/en/language/functions/time/millis/
