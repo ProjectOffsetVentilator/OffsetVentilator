@@ -1,3 +1,6 @@
+Found this in the OpenLung Project.  This is their work.
+
+
 Ok, so I am not very knowledgeable when it comes to small electric motors, Though I think based on the points below that using a servo motor is most suitable for this project.
 
 # Types of Motors
