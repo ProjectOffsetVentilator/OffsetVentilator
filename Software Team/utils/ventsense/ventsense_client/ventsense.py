@@ -1,5 +1,5 @@
 # ventsense.py
-# v0.1-0
+# v0.1-1
 # Created 4/03/2020
 # Clay Gilmore
 # Helpful Engineering
@@ -58,6 +58,8 @@ from io import open
 list = []
 
 def printHelp():
+    print ('ventsense_client v0.1-1')
+    print ('')
     print ('usage: python ventsense.py -p <serial port> [-c]')
     print ('')
     print ('options:')
