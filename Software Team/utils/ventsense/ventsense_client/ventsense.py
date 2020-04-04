@@ -18,7 +18,8 @@
 #     
 #   Software
 #     ventsense.py v0.1-x
-#     Python 2.7.10 or later 2.x.x release (has not been tested with Python 3)
+#     Python (tested on v2.7.10 and v3.6.8)
+#     pySerial package
 #
 # Setup:
 # Wire BMP-388 to Arduino, per the Circuit section in the ventsense_fw readme. Connect Arduino 
@@ -30,6 +31,8 @@
 #     python ventsense.py -p COM10
 #
 # Notes:
+# Press CTRL+C to exit.
+#
 # Look up the correct serial port name before executing the script. It will fail if given a
 # wrong or invalid serial port.
 # 
@@ -43,26 +46,27 @@
 # time you reset the Arduino.
 #
 # The .csv files are named as follows, based on the date and time at creation:
-#     ventsense_log_<YYYY-MM-DD_hh:mm:ss>.csv
+#     ventsense_log_<YYYY-MM-DD_hhmmss>.csv
 
 import serial
 import time
 import csv
 import sys
 import getopt
+from io import open
 
 list = []
 
 def printHelp():
-    print 'usage: python ventsense.py -p <serial port> [-c]'
-    print ''
-    print 'options:'
-    print '    -c                   echo sensor data to the console'
-    print '    -h                   help. I.e., print this screen'
-    print '    -p <serial port>     name of serial port Arduino is attached to (required)'
+    print ('usage: python ventsense.py -p <serial port> [-c]')
+    print ('')
+    print ('options:')
+    print ('    -c                   echo sensor data to the console')
+    print ('    -h                   help. I.e., print this screen')
+    print ('    -p <serial port>     name of serial port Arduino is attached to (required)')
 
 def startNewLogFile():
-    timestr = time.strftime("%Y-%m-%d_%H:%M:%S")
+    timestr = time.strftime("%Y-%m-%d_%Hh%Mm%Ss")
     csv_str = "ventsense_log_" + timestr + ".csv"
 
     return open(csv_str, "a");
@@ -95,29 +99,33 @@ def main(argv):
         ser = serial.Serial(serial_port_name, 115200)
         ser.flushInput()
 
-        timestr = time.strftime("%Y-%m-%d_%H:%M:%S")
-        csv_str = "ventsense_log_" + timestr + ".csv"
-
         file = startNewLogFile()
 
         while True:
             try:
                 ser_bytes = ser.readline()
+                
+                ser_str = ser_bytes.decode('utf-8')
+                ser_str = ser_str.strip()
 
                 if console_output:
-                    print(ser_bytes.strip())
+                    print(ser_str)
 
-                if ser_bytes[0] == 't':
+                if ser_str[0] == 't':
                     file.close()
                     file = startNewLogFile()
-                
-                if first_read:
+                elif first_read:
                     file.write("timestamp,temp 1,press 1")
+                    
+                first_read = False
 
-                file.write(ser_bytes)
+                file.write(ser_str + '\n')
 
-            except:
+            except KeyboardInterrupt:
                 print("Keyboard Interrupt")
+                break
+            except Exception as e:
+                print(e)
                 break
 
         file.close()
