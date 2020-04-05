@@ -119,7 +119,7 @@ def main(argv):
                 #check whether running python 3. If so, convert bytes to string
                 if (sys.version_info > (3, 0)):
                     ser_str = ser_bytes.decode('utf-8')
-                elif:
+                else:
                     ser_str = ser_bytes
 
                 #remove whitespace and line endings
