@@ -79,10 +79,12 @@ def startNewLogFile():
     
 
 def main(argv):
+    ser_str = ''
     serial_port_name = ''
     console_output = False
     first_read = True
 
+    #parse command line options
     try:
         opts, args = getopt.getopt(argv,"hcp:")
     except getopt.GetoptError:
@@ -102,35 +104,51 @@ def main(argv):
         sys.exit(2)
 
     else:
+        #open serial port
         ser = serial.Serial(serial_port_name, 115200)
         ser.flushInput()
 
         file = startNewLogFile()
 
+        #continually listen to serial stream and pass it through to CSV log file
         while True:
             try:
+                #read serial data
                 ser_bytes = ser.readline()
                 
-                ser_str = ser_bytes.decode('utf-8')
+                #check whether running python 3. If so, convert bytes to string
+                if (sys.version_info > (3, 0)):
+                    ser_str = ser_bytes.decode('utf-8')
+                elif:
+                    ser_str = ser_bytes
+
+                #remove whitespace and line endings
                 ser_str = ser_str.strip()
 
+                #echo data on console, if requested
                 if console_output:
                     print(ser_str)
 
+                #if Arduino resets while listening, then start a new log file
                 if ser_str[0] == 't':
                     file.close()
                     file = startNewLogFile()
+                #if Arduino was already running when we started listening, write 
+                #table heading to log file
                 elif first_read:
                     file.write("timestamp,temp 1,press 1")
                     
                 first_read = False
-
+                
+                #log data to CSV
                 file.write(ser_str + '\n')
 
             except KeyboardInterrupt:
-                print("Keyboard Interrupt")
+                #user has exited with CTRL+C
+                print("Exiting...")
                 break
             except Exception as e:
+                #any other exception
                 print(e)
                 break
 
