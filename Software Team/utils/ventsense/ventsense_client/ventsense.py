@@ -17,9 +17,13 @@
 #     Computer
 #     
 #   Software
-#     ventsense.py v0.1-x
-#     Python (tested on v2.7.10 and v3.6.8)
-#     pySerial package
+#     ventsense_fw.ino v0.1-x
+#     either
+#        pre-built ventsense executable for Windows or Linux (located in bin folder)
+#     or
+#        ventsense.py
+#        Python (tested on v2.7.10 and v3.6.8)
+#        pySerial package
 #
 # Setup:
 # Wire BMP-388 to Arduino, per the Circuit section in the ventsense_fw readme. Connect Arduino 
