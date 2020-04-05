@@ -57,7 +57,11 @@ import time
 import csv
 import sys
 import getopt
-from io import open
+import traceback
+
+#if running python 3, import open
+if (sys.version_info > (3, 0)):
+    from io import open
 
 list = []
 
@@ -79,7 +83,7 @@ def startNewLogFile():
     
 
 def main(argv):
-    ser_str = ''
+    ser_str = u''
     serial_port_name = ''
     console_output = False
     first_read = True
@@ -116,7 +120,7 @@ def main(argv):
                 #read serial data
                 ser_bytes = ser.readline()
                 
-                #check whether running python 3. If so, convert bytes to string
+                #if running python 3, convert bytes to string
                 if (sys.version_info > (3, 0)):
                     ser_str = ser_bytes.decode('utf-8')
                 else:
@@ -125,23 +129,25 @@ def main(argv):
                 #remove whitespace and line endings
                 ser_str = ser_str.strip()
 
-                #echo data on console, if requested
-                if console_output:
-                    print(ser_str)
+                #if string is empty, skip the rest
+                if ser_str:
+                    #echo data on console, if requested
+                    if console_output:
+                        print(ser_str)
 
-                #if Arduino resets while listening, then start a new log file
-                if ser_str[0] == 't':
-                    file.close()
-                    file = startNewLogFile()
-                #if Arduino was already running when we started listening, write 
-                #table heading to log file
-                elif first_read:
-                    file.write("timestamp,temp 1,press 1")
+                    #if Arduino resets while listening, then start a new log file
+                    if ser_str[0] == 't':
+                        file.close()
+                        file = startNewLogFile()
+                    #if Arduino was already running when we started listening, write 
+                    #table heading to log file
+                    elif first_read:
+                        file.write("timestamp,temp 1,press 1\n")
+                        
+                    first_read = False
                     
-                first_read = False
-                
-                #log data to CSV
-                file.write(ser_str + '\n')
+                    #log data to CSV
+                    file.write(ser_str + '\n')
 
             except KeyboardInterrupt:
                 #user has exited with CTRL+C
@@ -150,6 +156,7 @@ def main(argv):
             except Exception as e:
                 #any other exception
                 print(e)
+                print(traceback.format_exc())
                 break
 
         file.close()
