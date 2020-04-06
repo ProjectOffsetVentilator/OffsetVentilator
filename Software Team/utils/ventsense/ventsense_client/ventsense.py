@@ -5,21 +5,21 @@
 # Helpful Engineering
 #
 # Purpose:
-# Reads streaming temperature and pressure sensor data from serial port and saves it to a Comma
-# Separated Variable (.csv) file. It is intended to interface with an Arduino reading sensor
+# Reads streaming temperature and pressure sensor data from serial port and saves it to a Comma-
+# Separated Value (.csv) file. It is intended to interface with an Arduino reading sensor
 # data from a BMP-388. 
 #
 # Requirements:
 #   Hardware
-#     1x Arduino
+#     1x Arduino Uno
 #     1x BMP-388
 #     USB cable
 #     Computer
 #     
 #   Software
-#     ventsense_fw.ino v0.1-x
+#     ventsense_fw v0.1-x
 #     either
-#        pre-built ventsense executable for Windows or Linux (located in bin folder)
+#        pre-built ventsense client executable for Windows or Linux (located in bin folder)
 #     or
 #        ventsense.py
 #        Python (tested on v2.7.10 and v3.6.8)
@@ -31,7 +31,7 @@
 # command line, specifying the serial port name (e.g. something like "COM10" on Windows or 
 # "/dev/ttyACM0" on Linux). Optionally, the user can have the live sensor data printed to the 
 # console, as well. See the printHelp() function below or execute this script with the "-h" 
-# info on command line arguments. Example:
+# option for more info on command line arguments. Example:
 #     python ventsense.py -p COM10
 #
 # Notes:
@@ -51,6 +51,7 @@
 #
 # The .csv files are named as follows, based on the date and time at creation:
 #     ventsense_log_<YYYY-MM-DD_hhmmss>.csv
+
 
 import serial
 import time

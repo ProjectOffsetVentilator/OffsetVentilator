@@ -51,13 +51,13 @@
 * 
 * Requirements:
 *   Hardware
-*     1x Arduino
+*     1x Arduino Uno
 *     1x BMP-388
 *     USB cable
 *     Computer
 *     
 *   Software
-*     ventsense.py v0.1-x (or serial terminal app)
+*     ventsense client v0.1-x (or serial terminal app)
 *     Arduino v1.8.5 or later
 *     
 * Setup:
