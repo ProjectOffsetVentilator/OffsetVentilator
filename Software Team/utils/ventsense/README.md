@@ -1,58 +1,58 @@
-##Ventsense Software
+## Ventsense Software
 
-###Purpose
-####Ventsense Firmware
+### Purpose
+#### Ventsense Firmware
 This code runs on an Arduino Uno, reading temperature and pressure data from a BMP-388 sensor 
 via the SPI interface at a 10 Hz rate and sending it out on the serial port. Calibration and 
 temperature compensation is performed on the data prior to sending.
 
-####Ventsense Client
+#### Ventsense Client
 This code runs on a PC that is connected to the Arduino via USB cable. It reads streaming 
 temperature and pressure sensor data from serial port and saves it to a Comma-Separated 
 Value (.csv) file. 
 
 
-###Requirements
-Hardware
-   1x Arduino Uno
-   1x BMP-388
-   USB cable
-   Computer
+### Requirements
+Hardware  
+   - 1x Arduino Uno
+   - 1x BMP-388
+   - USB cable
+   - Computer
     
-Software
-   Arduino v1.8.5 or later
-   ventsense_fw.ino v0.1-x
-   either
-      pre-built ventsense client executable for Windows or Linux (located in bin folder)
-   or
-      ventsense.py
-      Python (tested on v2.7.10 and v3.6.8)
-      pySerial package
+Software  
+   - Arduino v1.8.5 or later
+   - ventsense_fw.ino v0.1-x
+   - either
+     - pre-built ventsense client executable for Windows or Linux (located in bin folder)
+   - or
+     - ventsense.py
+     - Python (tested on v2.7.10 and v3.6.8)
+     - pySerial package
     
-###Setup
+### Setup
 Wire BMP-388 to Arduino, per the Circuit section, below. Connect Arduino to computer via USB cable.
 
-####Ventsense Firmware
+#### Ventsense Firmware
 Load Arduino with the ventsense firmware.
 
-####Ventsense Client
+#### Ventsense Client
 Launch ventsense.py (or pre-built executable) from the command line, specifying the serial port name 
 (e.g. something like "COM10" on Windows or "/dev/ttyACM0" on Linux). Optionally, the user can have 
 the live sensor data printed to the console, as well. To see command line options, execute ventsense
-client with the "-h" option. Examples:
-   Linux executable:
-      ./ventsense -p "/dev/ttyACM0"
-   Windows executable:
-      ventsense.exe -p "COM11"
-   Python script:
-      python ventsense.py -p COM10
+client with the "-h" option. Examples:  
+- Linux executable:  
+   `./ventsense -p "/dev/ttyACM0"`  
+- Windows executable:  
+   `ventsense.exe -p "COM11"`  
+- Python script:  
+   `python ventsense.py -p COM10`
 
 
-###Circuit
+### Circuit
 Level-shifting is required to safely interface the 5V Arduino with the 3.3V BMP-388 on the following 
 pins (SCK, SDI, CSB). Also, the module I am using has a 10K pullup resistor on SDO. Not sure if it is 
 required. Example level-shifting circuit:
- 
+```
         Arduino output
              |
              \
@@ -78,9 +78,9 @@ Pin#  Name          Pin#  Name
 13    SCK --------- 2     SCK         (level-shifting required)
  -    3.3V -------- 1,10  VDDIO,VDD
  -    GND --------- 3,8,9 VSS
+``` 
       
-      
-Notes:
+### Notes:
 Baud rate is 115200.
 
 Press CTRL+C to exit ventsense client.
