@@ -10,10 +10,6 @@ Alternative to delay() https://www.arduino.cc/reference/en/language/functions/ti
 
 Blink without delay sketch https://www.arduino.cc/en/Tutorial/BlinkWithoutDelay
 
-Hobby Servo control https://www.youtube.com/watch?v=kUHmYKWwuWs
-
-Hobby servo teardown https://youtu.be/OcgF4lYRHnc?t=47
-
 ## Software
 Ventsense - utility for logging pressure and temperature data from BMP-388 sensor. Consists of firmware to run on 
 an Arduino Uno (ventsense_fw), as well as software to run on a host PC connected to the Arduino by a USB cable 
