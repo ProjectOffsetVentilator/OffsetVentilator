@@ -1,5 +1,5 @@
 # ventsense.py
-# v0.1-1
+# v0.2-0
 # Created 4/03/2020
 # Clay Gilmore
 # Helpful Engineering
@@ -12,16 +12,16 @@
 # Requirements:
 #   Hardware
 #     1x Arduino Uno
-#     1x BMP-388
+#     3x BMP-388
 #     USB cable
 #     Computer
 #     
 #   Software
-#     ventsense_fw v0.1-x
+#     ventsense_fw v0.2-x
 #     either
-#        pre-built ventsense client executable for Windows or Linux (located in bin folder)
+#        pre-built ventsense client executable (v0.2-x) for Windows or Linux (located in bin folder)
 #     or
-#        ventsense.py
+#        ventsense.py v0.2-x
 #        Python (tested on v2.7.10 and v3.6.8)
 #        pySerial package
 #
@@ -67,7 +67,7 @@ if (sys.version_info > (3, 0)):
 list = []
 
 def printHelp():
-    print ('ventsense_client v0.1-1')
+    print ('ventsense_client v0.2-0')
     print ('')
     print ('usage: python ventsense.py -p <serial port> [-c]')
     print ('')
