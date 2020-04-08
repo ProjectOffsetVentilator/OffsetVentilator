@@ -15,17 +15,17 @@ Value (.csv) file.
 ### Requirements
 Hardware  
    - 1x Arduino Uno
-   - 1x BMP-388
+   - 3x BMP-388
    - USB cable
    - Computer
     
 Software  
    - Arduino v1.8.5 or later
-   - ventsense_fw.ino v0.1-x
+   - ventsense_fw.ino v0.2-x
    - either
-     - pre-built ventsense client executable for Windows or Linux (located in bin folder)
+     - pre-built ventsense client executable (v2.0-x) for Windows or Linux (located in bin folder)
    - or
-     - ventsense.py
+     - ventsense.py v0.2-x
      - Python (tested on v2.7.10 and v3.6.8)
      - pySerial package
     
@@ -70,14 +70,16 @@ required. Example level-shifting circuit:
             GND
  
 Connect the pins as follows:
-Arduino             BMP-388
-Pin#  Name          Pin#  Name
-10    CS ---------- 6     CSB         (level-shifting required)
-11    MOSI -------- 4     SDI         (level-shifting required)
-12    MISO -------- 5     SDO
-13    SCK --------- 2     SCK         (level-shifting required)
- -    3.3V -------- 1,10  VDDIO,VDD
- -    GND --------- 3,8,9 VSS
+Arduino                       BMP-388 #1           BMP-388 #2            BMP-38 #3
+Pin#  Name                    Pin#  Name           Pin#  Name            Pin#  Name
+ 8    CS1 ---<level shift>--- 6     CSB                                            
+ 9    CS2 ---<level shift>------------------------ 6     CSB                       
+10    CS3 ---<level shift>---------------------------------------------- 6     CSB
+11    MOSI --<level shift>--- 4     SDI ---------- 4     SDI ----------- 4     SDI
+12    MISO ------------------ 5     SDO ---------- 5     SDO ----------- 5     SDO
+13    SCK ---<level shift>--- 2     SCK ---------- 2     SCK ----------- 2     SCK
+ -    3.3V ------------------ 1,10  VDDIO,VDD ---- 1,10  VDDIO,VDD ----- 1,10  VDDIO,VDD
+ -    GND ------------------- 3,8,9 VSS ---------- 3,8,9 VSS ----------- 3,8,9 VSS      
 ``` 
       
 ### Notes:
@@ -85,10 +87,10 @@ Baud rate is 115200.
 
 Press CTRL+C to exit ventsense client.
  
-Only 1 sensor supported, at the moment.
+Supports up to 3 sensors.
 
 Serial output format is:
-<timestamp>,<temp 1>,<pressure 1>
+<timestamp>,<temp 1>,<pressure 1>,<temp 2>,<pressure 2>,<temp 3>,<pressure 3>
 
 The temperature is in degrees Celsius and the pressure is in hPa.
 

@@ -38,13 +38,13 @@
 * POSSIBILITY OF SUCH DAMAGE.
 * ---------------------------------------------------------------------------
 * ventsense_fw.ino
-* v0.1-0
+* v0.2-0
 * Created 4/3/2020
 * Clay Gilmore
 * Helpful Engineering
 * 
 * Purpose:
-* This code reads temperature and pressure data from a BMP-388 sensor
+* This code reads temperature and pressure data from a bank of 3 BMP-388 sensors
 * via the SPI interface at a 10 Hz rate and sends it out on the serial port.
 * Calibration and temperature compensation is performed on the data prior to
 * sending. 
@@ -52,12 +52,12 @@
 * Requirements:
 *   Hardware
 *     1x Arduino Uno
-*     1x BMP-388
+*     3x BMP-388
 *     USB cable
 *     Computer
 *     
 *   Software
-*     ventsense client v0.1-x (or serial terminal app)
+*     ventsense client v0.2-x (or serial terminal app)
 *     Arduino v1.8.5 or later
 *     
 * Setup:
@@ -67,7 +67,11 @@
 *
 * Circuit:
 * Level-shifting is required to safely interface the 5V Arduino with the 
-* 3.3V BMP-388 on the following pins (SCK, SDI, CSB). Also, the module
+* 3.3V BMP-388 on the following pins (SCK, SDI, CSB). If you are using an
+* evaluation module, check its specifications to see whether it already does
+* the level shifting for you. If not, or if you are using the Offset Ventilator
+* sensor board, you will need to add your own level-shifting circuitry if you
+* are interfacing it with an off-the-shelf Arduino Uno. Also, the module
 * I am using has a 10K pullup resistor on SDO. Not sure if it is required.
 * Example level-shifting circuit:
 * 
@@ -88,23 +92,25 @@
 *            GND
 * 
 * Connect the pins as follows:
-* Arduino             BMP-388
-* Pin#  Name          Pin#  Name
-* 10    CS ---------- 6     CSB         (level-shifting required)
-* 11    MOSI -------- 4     SDI         (level-shifting required)
-* 12    MISO -------- 5     SDO
-* 13    SCK --------- 2     SCK         (level-shifting required)
-*  -    3.3V -------- 1,10  VDDIO,VDD  
-*  -    GND --------- 3,8,9 VSS
+* Arduino                       BMP-388 #1           BMP-388 #2            BMP-38 #3
+* Pin#  Name                    Pin#  Name           Pin#  Name            Pin#  Name
+*  8    CS1 ---<level shift>--- 6     CSB                                            
+*  9    CS2 ---<level shift>------------------------ 6     CSB                       
+* 10    CS3 ---<level shift>---------------------------------------------- 6     CSB
+* 11    MOSI --<level shift>--- 4     SDI ---------- 4     SDI ----------- 4     SDI
+* 12    MISO ------------------ 5     SDO ---------- 5     SDO ----------- 5     SDO
+* 13    SCK ---<level shift>--- 2     SCK ---------- 2     SCK ----------- 2     SCK
+*  -    3.3V ------------------ 1,10  VDDIO,VDD ---- 1,10  VDDIO,VDD ----- 1,10  VDDIO,VDD
+*  -    GND ------------------- 3,8,9 VSS ---------- 3,8,9 VSS ----------- 3,8,9 VSS
 *       
 *       
 * Notes:
 * Baud rate is 115200.
 * 
-* Only 1 sensor supported, at the moment.
+* Up to 3 sensors are supported.
 * 
 * Serial output format is:
-* <timestamp>,<temp 1>,<pressure 1>
+* <timestamp>,<temp 1>,<pressure 1>,<temp 2>,<pressure 2>,<temp 3>,<pressure 3>
 * 
 * The temperature is in degrees Celsius and the pressure is in hPa.
 */
@@ -129,14 +135,21 @@ const int SENSOR_DATA_READ_LEN = 6;
 
 byte rxBuffer[CAL_DATA_READ_LEN+2] = {0};
 
-// pins used for the connection with the sensor
-// the other you need are controlled by the SPI library):
-const int chipSelectPin = 10;
-
 unsigned long previousMillis = 0;
 const long interval = 100;          // 100 ms sample period
 
-struct bmp3_quantized_calib_data
+typedef enum
+{
+    SENSOR_1,
+    SENSOR_2,
+    SENSOR_3
+} sensor_ID_t;
+
+// pins used for the connection with the sensor
+// the other you need are controlled by the SPI library):
+const int chipSelects[3] = {8, 9, 10};
+
+typedef struct 
 {
     double par_t1;
     double par_t2;
@@ -153,7 +166,9 @@ struct bmp3_quantized_calib_data
     double par_p10;
     double par_p11;
     double t_lin;
-} cal_data;
+} bmp3_quantized_calib_data;
+
+bmp3_quantized_calib_data cal_data[3] = {0};
 
 
 void setup() {
@@ -163,67 +178,82 @@ void setup() {
   SPI.begin();
 
   // initalize the chip select pins:
-  pinMode(chipSelectPin, OUTPUT);
+  pinMode(chipSelects[SENSOR_1], OUTPUT);
+  pinMode(chipSelects[SENSOR_2], OUTPUT);
+  pinMode(chipSelects[SENSOR_3], OUTPUT);
 
   // briefly assert chip select in order to configure BMP-388 for SPI mode
-  digitalWrite(chipSelectPin, LOW);
-  delay(20);
-  digitalWrite(chipSelectPin, HIGH);
+  digitalWrite(chipSelects[SENSOR_1], LOW);
+  digitalWrite(chipSelects[SENSOR_2], LOW);
+  digitalWrite(chipSelects[SENSOR_3], LOW);
+  delay(10);
+  digitalWrite(chipSelects[SENSOR_1], HIGH);
+  digitalWrite(chipSelects[SENSOR_2], HIGH);
+  digitalWrite(chipSelects[SENSOR_3], HIGH);
 
   SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0)); // 1 MHz clock
-  //put to sleep (soft reset)
-  writeRegister(PWR_CTRL, 0x00);
 
-  readRegisters(NVM_PAR_T1_7_0, CAL_DATA_READ_LEN, rxBuffer);
-  parse_calib_data(&rxBuffer[2], &cal_data);
+  //put to sleep (soft reset)
+  writeRegister(SENSOR_1, PWR_CTRL, 0x00);
+  writeRegister(SENSOR_2, PWR_CTRL, 0x00);
+  writeRegister(SENSOR_3, PWR_CTRL, 0x00);
+
+  delay(10);
+
+  //get calibration data
+  readRegisters(SENSOR_1, NVM_PAR_T1_7_0, CAL_DATA_READ_LEN, rxBuffer);
+  parse_calib_data(&rxBuffer[2], &cal_data[SENSOR_1]);
+
+  readRegisters(SENSOR_2, NVM_PAR_T1_7_0, CAL_DATA_READ_LEN, rxBuffer);
+  parse_calib_data(&rxBuffer[2], &cal_data[SENSOR_2]);
+
+  readRegisters(SENSOR_3, NVM_PAR_T1_7_0, CAL_DATA_READ_LEN, rxBuffer);
+  parse_calib_data(&rxBuffer[2], &cal_data[SENSOR_3]);
   
   //Configure BMP-388:
-  writeRegister(PWR_CTRL, 0x33);  // enable temp, enable press, normal mode
+  writeRegister(SENSOR_1, PWR_CTRL, 0x33);  // enable temp, enable press, normal mode
+  writeRegister(SENSOR_2, PWR_CTRL, 0x33);  // enable temp, enable press, normal mode
+  writeRegister(SENSOR_3, PWR_CTRL, 0x33);  // enable temp, enable press, normal mode
+
   SPI.endTransaction();
 
-  Serial.println("timestamp,temp 1,press 1");
+  Serial.println("timestamp,temp 1,press 1,temp 2,press 2,temp 3,press 3");
   
   // give the sensor time to set up:
   delay(500);
 }
 
 void loop() {
-  unsigned long temperatureData = 0;
-  unsigned long pressureData = 0;
-
   unsigned long currentMillis = millis();
 
   if (currentMillis - previousMillis >= interval) {
-    // save the last time you blinked the LED
-    previousMillis = currentMillis;  
+    double temperature[3] = {0};
+    double pressure[3] = {0};
 
-    SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0)); // 1 MHz clock
-  
-    readRegisters(DATA_0, SENSOR_DATA_READ_LEN, rxBuffer);
-
-    SPI.endTransaction();
-  
-    pressureData = (unsigned long)rxBuffer[2];
-    pressureData |= (unsigned long)rxBuffer[3] << 8;
-    pressureData |= (unsigned long)rxBuffer[4] << 16;
-  
-    temperatureData = (unsigned long)rxBuffer[5];
-    temperatureData |= (unsigned long)rxBuffer[6] << 8;
-    temperatureData |= (unsigned long)rxBuffer[7] << 16;
-
-    double dtemp = compensate_temperature(temperatureData, &cal_data);
-    double dpress = compensate_pressure(pressureData, &cal_data);
+    getPressureSensorData(SENSOR_1, &temperature[SENSOR_1], &pressure[SENSOR_1]);
+    getPressureSensorData(SENSOR_2, &temperature[SENSOR_2], &pressure[SENSOR_2]);
+    getPressureSensorData(SENSOR_3, &temperature[SENSOR_3], &pressure[SENSOR_3]);
     
     // display the sensor data
     Serial.print(currentMillis);
     Serial.print(",");
-    Serial.print(dtemp);
+    Serial.print(temperature[SENSOR_1]);
     Serial.print(",");
-    Serial.println(dpress / 100.0);
+    Serial.print(pressure[SENSOR_1] / 100.0);
+    Serial.print(",");
+    Serial.print(temperature[SENSOR_2]);
+    Serial.print(",");
+    Serial.print(pressure[SENSOR_2] / 100.0);
+    Serial.print(",");
+    Serial.print(temperature[SENSOR_3]);
+    Serial.print(",");
+    Serial.println(pressure[SENSOR_3] / 100.0);
+
+    previousMillis = currentMillis;
   }
 }
 
-unsigned int readRegisters(byte thisRegister, int bytesToRead, byte* rxbuff)
+unsigned int readRegisters(sensor_ID_t sensor, byte thisRegister, int bytesToRead, byte* rxbuff)
 {
   unsigned int result = 0;   // result to return
   int i = 0;
@@ -232,35 +262,58 @@ unsigned int readRegisters(byte thisRegister, int bytesToRead, byte* rxbuff)
   rxbuff[0] = thisRegister | READ;
 
   // take the chip select low to select the device:
-  digitalWrite(chipSelectPin, LOW);
+  digitalWrite(chipSelects[sensor], LOW);
   
   // send the device the register you want to read:
   SPI.transfer(rxbuff, bytesToRead+2);
 
   // take the chip select high to de-select:
-  digitalWrite(chipSelectPin, HIGH);
+  digitalWrite(chipSelects[sensor], HIGH);
   
   // return the result:
   return (result);
 }
 
 
-void writeRegister(byte thisRegister, byte thisValue)
+void writeRegister(sensor_ID_t sensor, byte thisRegister, byte thisValue)
 {
   // now combine the register address and the command into one byte:
   byte dataToSend = thisRegister & WRITE;
 
   // take the chip select low to select the device:
-  digitalWrite(chipSelectPin, LOW);
+  digitalWrite(chipSelects[sensor], LOW);
 
   SPI.transfer(dataToSend); //Send register location
   SPI.transfer(thisValue);  //Send value to record into register
 
   // take the chip select high to de-select:
-  digitalWrite(chipSelectPin, HIGH);
+  digitalWrite(chipSelects[sensor], HIGH);
 }
 
-static void parse_calib_data(const uint8_t *raw_cal, struct bmp3_quantized_calib_data *cal)
+unsigned int getPressureSensorData(sensor_ID_t sensor, double* temperature, double* pressure)
+{
+  unsigned long temperatureData = 0;
+  unsigned long pressureData = 0;
+
+  SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0)); // 1 MHz clock
+
+  readRegisters(sensor, DATA_0, SENSOR_DATA_READ_LEN, rxBuffer);
+
+  SPI.endTransaction();
+
+  pressureData = (unsigned long)rxBuffer[2];
+  pressureData |= (unsigned long)rxBuffer[3] << 8;
+  pressureData |= (unsigned long)rxBuffer[4] << 16;
+
+  temperatureData = (unsigned long)rxBuffer[5];
+  temperatureData |= (unsigned long)rxBuffer[6] << 8;
+  temperatureData |= (unsigned long)rxBuffer[7] << 16;
+
+  *temperature = compensate_temperature(temperatureData, &cal_data[sensor]);
+  *pressure = compensate_pressure(pressureData, &cal_data[sensor]);
+}
+
+static void parse_calib_data(const uint8_t *raw_cal, bmp3_quantized_calib_data *cal)
 {
   /* Temporary variable */
   double temp_var;
@@ -339,7 +392,7 @@ static void parse_calib_data(const uint8_t *raw_cal, struct bmp3_quantized_calib
   cal->par_p11 = ((double)nvm_par_p11 / temp_var);
 }
 
-static double compensate_temperature(unsigned long uncomp_temperature, struct bmp3_quantized_calib_data *cal)
+static double compensate_temperature(unsigned long uncomp_temperature, bmp3_quantized_calib_data *cal)
 {
     double partial_data1;
     double partial_data2;
@@ -355,7 +408,7 @@ static double compensate_temperature(unsigned long uncomp_temperature, struct bm
     return cal->t_lin;
 }
 
-static double compensate_pressure(unsigned long uncomp_pressure_in, const struct bmp3_quantized_calib_data *cal)
+static double compensate_pressure(unsigned long uncomp_pressure_in, const bmp3_quantized_calib_data *cal)
 {
     /* Variable to store the compensated pressure */
     double comp_pressure;

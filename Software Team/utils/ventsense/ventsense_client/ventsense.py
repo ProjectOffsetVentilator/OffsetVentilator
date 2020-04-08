@@ -109,8 +109,13 @@ def main(argv):
         sys.exit(2)
 
     else:
-        #open serial port
-        ser = serial.Serial(serial_port_name, 115200)
+        #open serial port (we have to use this roundabout way of opening the serial port in order to avoid
+        #resetting the Arduino upon opening the serial port. See https://github.com/pyserial/pyserial/issues/124
+        #for more info)
+        ser = serial.serial_for_url(serial_port_name, 115200,rtscts=False,dsrdtr=False,do_not_open=True)
+        ser.dtr = 0
+        ser.rts = 0
+        ser.open()
         ser.flushInput()
 
         file = startNewLogFile()
@@ -123,7 +128,8 @@ def main(argv):
                 
                 #if running python 3, convert bytes to string
                 if (sys.version_info > (3, 0)):
-                    ser_str = ser_bytes.decode('utf-8')
+                    ser_str = ser_bytes.decode('utf-8', 'ignore')
+
                 else:
                     ser_str = ser_bytes
 
@@ -143,7 +149,7 @@ def main(argv):
                     #if Arduino was already running when we started listening, write 
                     #table heading to log file
                     elif first_read:
-                        file.write("timestamp,temp 1,press 1\n")
+                        file.write("timestamp,temp 1,press 1,temp 2,press 2,temp 3,press 3\n")
                         
                     first_read = False
                     

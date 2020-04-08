@@ -13,6 +13,6 @@ Blink without delay sketch https://www.arduino.cc/en/Tutorial/BlinkWithoutDelay
 ## Software
 Ventsense - utility for logging pressure and temperature data from BMP-388 sensor. Consists of firmware to run on 
 an Arduino Uno (ventsense_fw), as well as software to run on a host PC connected to the Arduino by a USB cable 
-(ventsense_client). The ventsense firmware interfaces with a BMP-388 and streams its data over serial at a 10 Hz 
-rate. The ventsense client receives the data over serial and logs it to a Comma-Seperated Value (.csv) file. 
+(ventsense_client). The ventsense firmware interfaces with up to 3 BMP-388 chips and streams their data over serial 
+at a 10 Hz rate. The ventsense client receives the data over serial and logs it to a Comma-Seperated Value (.csv) file. 
 Located at: utils/ventsense/
