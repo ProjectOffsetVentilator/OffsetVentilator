@@ -59,12 +59,15 @@ import csv
 import sys
 import getopt
 import traceback
+import matplotlib.pyplot as plt
+import numpy as np #DBG
 
 #if running python 3, import open
 if (sys.version_info > (3, 0)):
     from io import open
 
 list = []
+
 
 def printHelp():
     print ('ventsense_client v0.2-0')
@@ -88,7 +91,8 @@ def main(argv):
     serial_port_name = ''
     console_output = False
     first_read = True
-
+    plot_window = 100
+    
     #parse command line options
     try:
         opts, args = getopt.getopt(argv,"hcp:")
@@ -119,6 +123,14 @@ def main(argv):
         ser.flushInput()
 
         file = startNewLogFile()
+        
+        fig = None
+        ax = None
+        line = None
+        y_data = None
+        x_data = None
+        
+        i=0
 
         #continually listen to serial stream and pass it through to CSV log file
         while True:
@@ -155,6 +167,38 @@ def main(argv):
                     
                     #log data to CSV
                     file.write(ser_str + '\n')
+                    
+                    #plot data
+                    str_tokens = ser_str.split(',')
+
+                    if (len(str_tokens) >= 7):
+                        if i > 0:
+                            y_data = np.insert(y_data,0,float(str_tokens[2]))
+                            #y_data = y_data[0:plot_window]
+                            
+                            x_data = np.append(x_data,i)
+                                
+                            line.set_ydata(y_data)
+                            line.set_xdata(x_data)
+                            ax.draw_artist(ax.patch)
+
+                            ax.draw_artist(line)
+
+                            fig.canvas.blit(ax.bbox)
+                            fig.canvas.flush_events()
+                        else:
+                            y_data = np.array([float(str_tokens[2])])
+                            x_data = np.array(i)
+        
+                            fig, ax = plt.subplots()
+                            line, = ax.plot(x_data, y_data,'b')
+                            plt.show(block=False)
+                            ax.set_xlim(100, 0)
+                            ax.set_ylim(975, 1150)
+                            fig.canvas.draw()
+                            
+                        i+=1
+
 
             except KeyboardInterrupt:
                 #user has exited with CTRL+C
