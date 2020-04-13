@@ -1,5 +1,5 @@
 # ventsense.py
-# v0.2-0
+# v0.2-1
 # Created 4/03/2020
 # Clay Gilmore
 # Helpful Engineering
@@ -60,7 +60,7 @@ import sys
 import getopt
 import traceback
 import matplotlib.pyplot as plt
-import numpy as np #DBG
+import numpy as np
 
 #if running python 3, import open
 if (sys.version_info > (3, 0)):
@@ -68,9 +68,14 @@ if (sys.version_info > (3, 0)):
 
 list = []
 
+SENSOR_1 = 0
+SENSOR_2 = 1
+SENSOR_3 = 2
+MAX_SENSORS = 3
+
 
 def printHelp():
-    print ('ventsense_client v0.2-0')
+    print ('ventsense_client v0.2-1')
     print ('')
     print ('usage: python ventsense.py -p <serial port> [-c]')
     print ('')
@@ -125,9 +130,9 @@ def main(argv):
         file = startNewLogFile()
         
         fig = None
-        ax = None
-        line = None
-        y_data = None
+        axs = [None] * MAX_SENSORS
+        lines = [None] * MAX_SENSORS
+        y_data = [None] * MAX_SENSORS
         x_data = None
         
         i=0
@@ -173,28 +178,39 @@ def main(argv):
 
                     if (len(str_tokens) >= 7):
                         if i > 0:
-                            y_data = np.insert(y_data,0,float(str_tokens[2]))
-                            #y_data = y_data[0:plot_window]
+                            y_data[SENSOR_1] = np.insert(y_data[SENSOR_1],0,float(str_tokens[2]))
+                            y_data[SENSOR_2] = np.insert(y_data[SENSOR_2],0,float(str_tokens[4]))
+                            y_data[SENSOR_3] = np.insert(y_data[SENSOR_3],0,float(str_tokens[6]))
                             
                             x_data = np.append(x_data,i)
+                            
+                            for line, y in zip(lines,y_data):
+                                line.set_ydata(y)
+                                line.set_xdata(x_data)
                                 
-                            line.set_ydata(y_data)
-                            line.set_xdata(x_data)
-                            ax.draw_artist(ax.patch)
-
-                            ax.draw_artist(line)
-
-                            fig.canvas.blit(ax.bbox)
+                            for ax, line in zip(axs, lines):
+                                ax.draw_artist(ax.patch)
+                                ax.draw_artist(line)
+                                fig.canvas.blit(ax.bbox)
+                                
                             fig.canvas.flush_events()
                         else:
-                            y_data = np.array([float(str_tokens[2])])
+                            y_data[SENSOR_1] = np.array([float(str_tokens[2])])
+                            y_data[SENSOR_2] = np.array([float(str_tokens[4])])
+                            y_data[SENSOR_3] = np.array([float(str_tokens[6])])
                             x_data = np.array(i)
         
-                            fig, ax = plt.subplots()
-                            line, = ax.plot(x_data, y_data,'b')
+                            fig, axs = plt.subplots(MAX_SENSORS)
+                            lines[SENSOR_1], = axs[SENSOR_1].plot(x_data, y_data[SENSOR_1],'r')
+                            lines[SENSOR_2], = axs[SENSOR_2].plot(x_data, y_data[SENSOR_2],'g')
+                            lines[SENSOR_3], = axs[SENSOR_3].plot(x_data, y_data[SENSOR_3],'b')
+                            
                             plt.show(block=False)
-                            ax.set_xlim(100, 0)
-                            ax.set_ylim(975, 1150)
+                            
+                            for ax in axs:
+                                ax.set_xlim(100, 0)
+                                ax.set_ylim(1000, 1075)
+                                
                             fig.canvas.draw()
                             
                         i+=1
