@@ -59,8 +59,25 @@ import csv
 import sys
 import getopt
 import traceback
+from matplotlib.ticker import (MultipleLocator, FormatStrFormatter, AutoLocator, AutoMinorLocator)
 import matplotlib.pyplot as plt
 import numpy as np
+
+SW_VERSION = 'v0.2-1'
+
+SENSOR_1 = 0
+SENSOR_2 = 1
+SENSOR_3 = 2
+MAX_SENSORS = 3
+
+TEMP_IDX = 0
+PRESS_IDX = 1
+
+SAMPLE_RATE = 10.0 #Hz
+x_upper_bound_press = 200.0 / SAMPLE_RATE
+x_lower_bound_press = 0.0 / SAMPLE_RATE
+x_upper_bound_temp = 200.0 / SAMPLE_RATE
+x_lower_bound_temp = 0.0 / SAMPLE_RATE
 
 #if running python 3, import open
 if (sys.version_info > (3, 0)):
@@ -68,14 +85,8 @@ if (sys.version_info > (3, 0)):
 
 list = []
 
-SENSOR_1 = 0
-SENSOR_2 = 1
-SENSOR_3 = 2
-MAX_SENSORS = 3
-
-
 def printHelp():
-    print ('ventsense_client v0.2-1')
+    print ('ventsense_client ' + SW_VERSION)
     print ('')
     print ('usage: python ventsense.py -p <serial port> [-c]')
     print ('')
@@ -130,9 +141,9 @@ def main(argv):
         file = startNewLogFile()
         
         fig = None
-        axs = [None] * MAX_SENSORS
-        lines = [None] * MAX_SENSORS
-        y_data = [None] * MAX_SENSORS
+        axs = [[None, None],[None, None],[None, None]]
+        lines = [[None, None],[None, None],[None, None]]
+        y_data = [[None, None],[None, None],[None, None]]
         x_data = None
         
         i=0
@@ -178,39 +189,81 @@ def main(argv):
 
                     if (len(str_tokens) >= 7):
                         if i > 0:
-                            y_data[SENSOR_1] = np.insert(y_data[SENSOR_1],0,float(str_tokens[2]))
-                            y_data[SENSOR_2] = np.insert(y_data[SENSOR_2],0,float(str_tokens[4]))
-                            y_data[SENSOR_3] = np.insert(y_data[SENSOR_3],0,float(str_tokens[6]))
+                            y_data[SENSOR_1][PRESS_IDX] = [float(str_tokens[2])] + y_data[SENSOR_1][PRESS_IDX]
+                            y_data[SENSOR_2][PRESS_IDX] = [float(str_tokens[4])] + y_data[SENSOR_2][PRESS_IDX]
+                            y_data[SENSOR_3][PRESS_IDX] = [float(str_tokens[6])] + y_data[SENSOR_3][PRESS_IDX]
                             
-                            x_data = np.append(x_data,i)
+                            y_data[SENSOR_1][TEMP_IDX] = [float(str_tokens[1])] + y_data[SENSOR_1][TEMP_IDX]
+                            y_data[SENSOR_2][TEMP_IDX] = [float(str_tokens[3])] + y_data[SENSOR_2][TEMP_IDX]
+                            y_data[SENSOR_3][TEMP_IDX] = [float(str_tokens[5])] + y_data[SENSOR_3][TEMP_IDX]
                             
-                            for line, y in zip(lines,y_data):
-                                line.set_ydata(y)
-                                line.set_xdata(x_data)
-                                
-                            for ax, line in zip(axs, lines):
-                                ax.draw_artist(ax.patch)
-                                ax.draw_artist(line)
-                                fig.canvas.blit(ax.bbox)
+                            x_data = np.append(x_data,float(i)/SAMPLE_RATE)
+                            
+                            for j in range(len(lines)):
+                                for k in range(len(lines[j])):
+                                    lines[j][k].set_ydata(y_data[j][k])
+                                    lines[j][k].set_xdata(x_data)
+                                    axs[j][k].draw_artist(axs[j][k].patch)
+                                    axs[j][k].draw_artist(lines[j][k])
+                                    fig.canvas.blit(axs[j][k].bbox)
                                 
                             fig.canvas.flush_events()
                         else:
-                            y_data[SENSOR_1] = np.array([float(str_tokens[2])])
-                            y_data[SENSOR_2] = np.array([float(str_tokens[4])])
-                            y_data[SENSOR_3] = np.array([float(str_tokens[6])])
-                            x_data = np.array(i)
+                            y_data[SENSOR_1][PRESS_IDX] = [str_tokens[2]]
+                            y_data[SENSOR_2][PRESS_IDX] = [str_tokens[4]]
+                            y_data[SENSOR_3][PRESS_IDX] = [str_tokens[6]]
+                            
+                            y_data[SENSOR_1][TEMP_IDX] = [str_tokens[1]]
+                            y_data[SENSOR_2][TEMP_IDX] = [str_tokens[3]]
+                            y_data[SENSOR_3][TEMP_IDX] = [str_tokens[5]]
+                            
+                            x_data = np.array(float(i))
         
-                            fig, axs = plt.subplots(MAX_SENSORS)
-                            lines[SENSOR_1], = axs[SENSOR_1].plot(x_data, y_data[SENSOR_1],'r')
-                            lines[SENSOR_2], = axs[SENSOR_2].plot(x_data, y_data[SENSOR_2],'g')
-                            lines[SENSOR_3], = axs[SENSOR_3].plot(x_data, y_data[SENSOR_3],'b')
+                            fig, axs = plt.subplots(MAX_SENSORS, 2, figsize=(10,6), gridspec_kw={'width_ratios': [1, 5]})
+                            
+                            fig.subplots_adjust(hspace=.5)
+                            
+                            lines[SENSOR_1][PRESS_IDX], = axs[SENSOR_1][PRESS_IDX].plot(x_data, y_data[SENSOR_1][PRESS_IDX],'tab:red')
+                            lines[SENSOR_2][PRESS_IDX], = axs[SENSOR_2][PRESS_IDX].plot(x_data, y_data[SENSOR_2][PRESS_IDX],'tab:green')
+                            lines[SENSOR_3][PRESS_IDX], = axs[SENSOR_3][PRESS_IDX].plot(x_data, y_data[SENSOR_3][PRESS_IDX],'tab:blue')
+                            
+                            lines[SENSOR_1][TEMP_IDX], = axs[SENSOR_1][TEMP_IDX].plot(x_data, y_data[SENSOR_1][TEMP_IDX],'tab:pink')
+                            lines[SENSOR_2][TEMP_IDX], = axs[SENSOR_2][TEMP_IDX].plot(x_data, y_data[SENSOR_2][TEMP_IDX],'tab:olive')
+                            lines[SENSOR_3][TEMP_IDX], = axs[SENSOR_3][TEMP_IDX].plot(x_data, y_data[SENSOR_3][TEMP_IDX],'tab:cyan')
+                            
+                            axs[SENSOR_1][PRESS_IDX].set_title('Pressure 1')
+                            axs[SENSOR_2][PRESS_IDX].set_title('Pressure 2')
+                            axs[SENSOR_3][PRESS_IDX].set_title('Pressure 3')
+                            
+                            axs[SENSOR_2][PRESS_IDX].set_ylabel('hPa')
+                            axs[SENSOR_2][PRESS_IDX].yaxis.set_label_position("right")
+                            axs[SENSOR_3][PRESS_IDX].set_xlabel('t - seconds')
+                            
+                            axs[SENSOR_1][TEMP_IDX].set_title('Temperature 1')
+                            axs[SENSOR_2][TEMP_IDX].set_title('Temperature 2')
+                            axs[SENSOR_3][TEMP_IDX].set_title('Temperature 3')
+                            axs[SENSOR_2][TEMP_IDX].set_ylabel('°C')
+                            
+                            for j in range(len(axs)):
+                                axs[j][PRESS_IDX].set_xlim(x_upper_bound_press, x_lower_bound_press)
+                                axs[j][PRESS_IDX].set_ylim(1000, 1080)
+                                axs[j][TEMP_IDX].set_xlim(x_upper_bound_temp, x_lower_bound_temp)
+                                axs[j][TEMP_IDX].set_ylim(15, 35)
+                                
+                                axs[j][PRESS_IDX].yaxis.set_major_locator(AutoLocator())
+                                axs[j][PRESS_IDX].yaxis.set_major_formatter(FormatStrFormatter('%d'))
+                                axs[j][PRESS_IDX].yaxis.set_minor_locator(AutoMinorLocator())
+                                axs[j][PRESS_IDX].yaxis.tick_right()
+                                axs[j][PRESS_IDX].xaxis.set_minor_locator(AutoMinorLocator())
+                                
+                                axs[j][TEMP_IDX].yaxis.set_major_locator(AutoLocator())
+                                axs[j][TEMP_IDX].yaxis.set_major_formatter(FormatStrFormatter('%d'))
+                                axs[j][TEMP_IDX].yaxis.set_minor_locator(AutoMinorLocator())
                             
                             plt.show(block=False)
                             
-                            for ax in axs:
-                                ax.set_xlim(100, 0)
-                                ax.set_ylim(1000, 1075)
-                                
+                            fig.canvas.set_window_title('Ventsense ' + SW_VERSION)
+   
                             fig.canvas.draw()
                             
                         i+=1
