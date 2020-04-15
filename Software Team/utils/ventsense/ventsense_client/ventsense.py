@@ -250,6 +250,7 @@ def main(argv):
         lines = [[None, None],[None, None],[None, None]]
         y_data = [[None, None],[None, None],[None, None]]
         x_data = None
+        leg = [None, None]
         
         if (combined_plot):
             axs = [[None, None]]
@@ -330,19 +331,22 @@ def main(argv):
                                 y_data[rel_sen_1][PRESS_IDX][0] = y_data[rel_sen_1][PRESS_IDX][0] - rel_base
                                 y_data[rel_sen_2][PRESS_IDX][0] = y_data[rel_sen_2][PRESS_IDX][0] - rel_base
                                 y_data[atmospheric_sensor][PRESS_IDX][0] = y_data[atmospheric_sensor][PRESS_IDX][0] - ATMOSPHERIC_BASELINE
-                                    
+                            
                             for k in (PRESS_IDX, TEMP_IDX):
                                 for j in range(len(axs)):
                                     axs[j][k].draw_artist(axs[j][k].patch)
-                                    
+                                
                                 for j in range(len(lines)):
                                     lines[j][k].set_ydata(y_data[j][k])
                                     lines[j][k].set_xdata(x_data)
                                     axs[axs_idx[j]][k].draw_artist(lines[j][k])
                                     
+                                if combined_plot:
+                                    axs[SENSOR_1][k].draw_artist(leg[k])
+                                
                                 for j in range(len(axs)):
                                     fig.canvas.blit(axs[j][k].bbox)
-                                
+                            
                             fig.canvas.flush_events()
                         else:
                             y_data[SENSOR_1][PRESS_IDX] = [float(str_tokens[2]) * c]
@@ -423,8 +427,8 @@ def main(argv):
                                 axs[j][TEMP_IDX].yaxis.set_minor_locator(AutoMinorLocator())
                                 
                                 if (combined_plot):
-                                    axs[j][PRESS_IDX].legend()
-                                    axs[j][TEMP_IDX].legend()
+                                    leg[PRESS_IDX] = axs[j][PRESS_IDX].legend()
+                                    leg[TEMP_IDX] = axs[j][TEMP_IDX].legend()
                             
                             plt.show(block=False)
                             
