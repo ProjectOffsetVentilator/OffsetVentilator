@@ -93,10 +93,23 @@ def printHelp():
     print ('usage: python ventsense.py -p <serial port> [-c]')
     print ('')
     print ('options:')
-    print ('    -c <true/false>      echo sensor data to the console')
-    print ('    -h                   help. I.e., print this screen')
-    print ('    -p <serial port>     name of serial port Arduino is attached to (required)')
-    print ('    -p <serial port>     name of serial port Arduino is attached to (required)')
+    print ('    -a, --atmospheric=<sensor ID>   Set the sensor which is used as the base for relative pressure plot. Must be 1, ' +
+           '                                    2, or 3. Defaults to 1')
+    print ('    -c, --show-console=<true/false> If true, echo sensor data to the console. Else, hide console output')
+    print ('    -d, --show-plot=<true/false>    If true, draw plot of sensor data in a new window. Else, hide plot')
+    print ('    -h                              Help. I.e., print this screen')
+    print ('    -p <serial port>                Name of serial port Arduino is attached to (required)')
+    print ('    -r, --relative=<true/false>     If true, plot pressures relative to atmospheric sensor. Else, plot\n' + 
+           '                                    absolute pressure values')
+    print ('    -w, --x-width=<seconds>         Number of seconds worth of data to display on plot')
+    print ('    --combined=<true/false>         If true, plot all sensors on one pressure and one temperature plot, respectively. ' +
+           '                                    Else, draw a separate plot for each sensor')
+    print ('    --press-y-max=<number>          Set the upper bound on the pressure plot\'s Y axis')
+    print ('    --press-y-min=<number>          Set the lower bound on the pressure plot\'s Y axis')
+    print ('    --temp-y-max=<number>           Set the upper bound on the temperature plot\'s Y axis')
+    print ('    --temp-y-min=<number>           Set the lower bound on the temperature plot\'s Y axis')
+    print ('    --use-cmh2o=<true/false>        If true, display pressure data in cmH2O on plot. Else, use hPa')
+    
 
 def startNewLogFile():
     timestr = time.strftime("%Y-%m-%d_%Hh%Mm%Ss")
@@ -121,50 +134,45 @@ def main(argv):
     combined_plot = config.getboolean('SETTINGS', 'combined_plot', fallback=False)#TODO
     relative_plot = config.getboolean('SETTINGS', 'relative_plot', fallback=False)
     atmospheric_sensor = config.getint('SETTINGS', 'atmospheric_sensor', fallback=1)
-    x_width = config.getfloat('SETTINGS', 'x_width', fallback=200)
+    x_width = config.getfloat('SETTINGS', 'x_width', fallback=20.0)
     y_upper_bound_press = config.getfloat('SETTINGS', 'pressure_y_upper_bound', fallback=1080)
     y_lower_bound_press = config.getfloat('SETTINGS', 'pressure_y_lower_bound', fallback=1000)
     y_upper_bound_temp = config.getfloat('SETTINGS', 'temperature_y_upper_bound', fallback=35)
     y_lower_bound_temp = config.getfloat('SETTINGS', 'temperature_y_lower_bound', fallback=15)
-    units_str = config.get('SETTINGS', 'pressure_units', fallback='cmh2o')
+    units_cmh2o = config.getboolean('SETTINGS', 'use_cmh2o', fallback=True)
     serial_port_name = config.get('SETTINGS', 'serial_port', fallback=None)
-    
-    if units_str in ('cmh2o', 'cmH2O'):
-        units_cmh2o = True
     
     if (atmospheric_sensor > 3) or (atmospheric_sensor < 1):
         atmospheric_sensor = 1
     atmospheric_sensor = atmospheric_sensor - 1
     
-    if (x_width > 10000) or (x_width < 0):
-        x_width = 200
+    if (x_width > 1000.0) or (x_width < 0):
+        x_width = 20.0
         
-    x_upper_bound_press = float(x_width) / SAMPLE_RATE
-    x_lower_bound_press = 0.0 / SAMPLE_RATE
-    x_upper_bound_temp = float(x_width) / SAMPLE_RATE
-    x_lower_bound_temp = 0.0 / SAMPLE_RATE
+    x_upper_bound = x_width
+    x_lower_bound = 0.0
     
     #parse command line options
     try:
-        opts, args = getopt.getopt(argv,"hc:r:w:p:a:", ["combined=", "relative=", "atmospheric=", "press-y-max=", "press-y-min=", "temp-y-max=", "temp-y-min=", "x-width=", "press-units=", "show-plot=","show-console="])
+        opts, args = getopt.getopt(argv,"hc:r:w:p:a:d:", ["combined=", "relative=", "atmospheric=", "press-y-max=", "press-y-min=", "temp-y-max=", "temp-y-min=", "x-width=", "use-cmh2o=", "show-plot=","show-console="])
     except getopt.GetoptError:
         printHelp()
         sys.exit(2)
     for opt, arg in opts:
-        if opt == '-h':
+        if opt.lower() == '-h':
             printHelp()
             sys.exit()
-        elif opt == '-p':
+        elif opt.lower() == '-p':
             serial_port_name = arg
-        elif opt in ('-c','--show-console'):
+        elif opt.lower() in ('-c','--show-console'):
             console_output = isStrTrue(arg)
-        elif opt == '-p':
+        elif opt.lower() == '-p':
             serial_port_name = arg
         elif opt == '--combined':
             combined_plot = isStrTrue(arg)
-        elif opt in ('-r', '--relative'):
+        elif opt.lower() in ('-r', '--relative'):
             relative_plot = isStrTrue(arg)
-        elif opt in ('-a', '--atmospheric'):
+        elif opt.lower() in ('-a', '--atmospheric'):
             if (arg == '1'):
                 atmospheric_sensor = SENSOR_1
             elif (arg == '2'):
@@ -175,26 +183,24 @@ def main(argv):
                 print("Sensor value be equal to 1, 2, or 3. Invalid sensor: " + arg)
                 printHelp()
                 sys.exit()
-        elif opt == '--press-y-max':
+        elif opt.lower() == '--press-y-max':
             y_upper_bound_press = float(arg)
         elif opt == '--press-y-min':
             y_lower_bound_press = float(arg)
-        elif opt == '--temp-y-max':
+        elif opt.lower() == '--temp-y-max':
             y_upper_bound_temp = float(arg)
-        elif opt == '--temp-y-min':
+        elif opt.lower() == '--temp-y-min':
             y_lower_bound_temp = float(arg)
-        elif opt in ('-w', '--x-width'):
+        elif opt.lower() in ('-w', '--x-width'):
             x_width = float(arg)
-            if (x_width > 10000) or (x_width < 0):
-                print("x-width value must be between 0 and 10000")
+            if (x_width > 1000.0) or (x_width < 0):
+                print("x-width value must be between 0 and 1000")
                 sys.exit()
-            x_upper_bound_press = float(x_width) / SAMPLE_RATE
-            x_lower_bound_press = 0.0 / SAMPLE_RATE
-            x_upper_bound_temp = float(x_width) / SAMPLE_RATE
-            x_lower_bound_temp = 0.0 / SAMPLE_RATE
-        elif opt == '--press-units':
-            units_cmh2o = (arg.lower() == 'cmh2o')
-        elif opt == '--show-plot':
+            x_upper_bound = x_width
+            x_lower_bound = 0.0
+        elif opt.lower() == '--use-cmh2o':
+            units_cmh2o = isStrTrue(arg)
+        elif opt.lower() in ('-d', '--show-plot'):
             plot_enabled = isStrTrue(arg)
         else:
             print("Unknown argument: " + opt)
@@ -207,11 +213,7 @@ def main(argv):
         sys.exit(2)
 
     else:
-        #save settings
-        units_str = 'hPa'
-        if units_cmh2o:
-            units_str = 'cmH2O'
-            
+        #save settings          
         if (not config.has_section('SETTINGS')):
             config.add_section('SETTINGS')
             
@@ -225,7 +227,7 @@ def main(argv):
         config.set('SETTINGS', 'pressure_y_lower_bound', str(y_lower_bound_press))
         config.set('SETTINGS', 'temperature_y_upper_bound', str(y_upper_bound_temp))
         config.set('SETTINGS', 'temperature_y_lower_bound', str(y_lower_bound_temp))
-        config.set('SETTINGS', 'pressure_units', units_str)
+        config.set('SETTINGS', 'use_cmh2o', str(units_cmh2o))
         config.set('SETTINGS', 'serial_port', serial_port_name)
         
         with open('settings.ini', 'w') as configfile:
@@ -250,8 +252,10 @@ def main(argv):
         
         i=0
         
+        units_str = 'hPa'
         c = 1.0
         if units_cmh2o:
+            units_str = 'cmH2O'
             c = 1.01974
             
         ATMOSPHERIC_BASELINE = ATMOSPHERIC_BASELINE * c
@@ -383,9 +387,9 @@ def main(argv):
                             axs[SENSOR_2][TEMP_IDX].set_ylabel('°C')
                             
                             for j in range(len(axs)):
-                                axs[j][PRESS_IDX].set_xlim(x_upper_bound_press, x_lower_bound_press)
+                                axs[j][PRESS_IDX].set_xlim(x_upper_bound, x_lower_bound)
                                 axs[j][PRESS_IDX].set_ylim(y_lower_bound_press, y_upper_bound_press)
-                                axs[j][TEMP_IDX].set_xlim(x_upper_bound_temp, x_lower_bound_temp)
+                                axs[j][TEMP_IDX].set_xlim(x_upper_bound, x_lower_bound)
                                 axs[j][TEMP_IDX].set_ylim(y_lower_bound_temp, y_upper_bound_temp)
                                 
                                 axs[j][PRESS_IDX].yaxis.set_major_locator(AutoLocator())
