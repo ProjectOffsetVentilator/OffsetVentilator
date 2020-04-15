@@ -330,9 +330,9 @@ unsigned int getPressureSensorData(sensor_ID_t sensor, double* temperature, doub
 unsigned int simTriangle(sensor_ID_t sensor, double* temperature, double* pressure)
 {
   static bool up[MAX_SENSORS] = {true,true,true};
-  static int i[MAX_SENSORS] = {0};
-  static double pres[MAX_SENSORS] = {101300.0,101300.0,101300.0};
-  static double temp[MAX_SENSORS] = {23.3,23.3,23.3};
+  static int i[MAX_SENSORS] = {0, 15, 30};
+  static double pres[MAX_SENSORS] = {101300.0,102800.0,104300.0};
+  static double temp[MAX_SENSORS] = {23.3,26.3,29.3};
 
   if (up[sensor])
   {

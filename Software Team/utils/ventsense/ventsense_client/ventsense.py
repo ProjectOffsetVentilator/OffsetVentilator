@@ -135,7 +135,7 @@ def main(argv):
     relative_plot = config.getboolean('SETTINGS', 'relative_plot', fallback=False)
     atmospheric_sensor = config.getint('SETTINGS', 'atmospheric_sensor', fallback=1)
     x_width = config.getfloat('SETTINGS', 'x_width', fallback=20.0)
-    y_upper_bound_press = config.getfloat('SETTINGS', 'pressure_y_upper_bound', fallback=1080)
+    y_upper_bound_press = config.getfloat('SETTINGS', 'pressure_y_upper_bound', fallback=1100)
     y_lower_bound_press = config.getfloat('SETTINGS', 'pressure_y_lower_bound', fallback=1000)
     y_upper_bound_temp = config.getfloat('SETTINGS', 'temperature_y_upper_bound', fallback=35)
     y_lower_bound_temp = config.getfloat('SETTINGS', 'temperature_y_lower_bound', fallback=15)
@@ -246,9 +246,14 @@ def main(argv):
         
         fig = None
         axs = [[None, None],[None, None],[None, None]]
+        axs_idx = [SENSOR_1, SENSOR_2, SENSOR_3]
         lines = [[None, None],[None, None],[None, None]]
         y_data = [[None, None],[None, None],[None, None]]
         x_data = None
+        
+        if (combined_plot):
+            axs = [[None, None]]
+            axs_idx = [SENSOR_1, SENSOR_1, SENSOR_1]
         
         i=0
         
@@ -325,13 +330,17 @@ def main(argv):
                                 y_data[rel_sen_1][PRESS_IDX][0] = y_data[rel_sen_1][PRESS_IDX][0] - rel_base
                                 y_data[rel_sen_2][PRESS_IDX][0] = y_data[rel_sen_2][PRESS_IDX][0] - rel_base
                                 y_data[atmospheric_sensor][PRESS_IDX][0] = y_data[atmospheric_sensor][PRESS_IDX][0] - ATMOSPHERIC_BASELINE
-                            
-                            for j in range(len(lines)):
-                                for k in range(len(lines[j])):
+                                    
+                            for k in (PRESS_IDX, TEMP_IDX):
+                                for j in range(len(axs)):
+                                    axs[j][k].draw_artist(axs[j][k].patch)
+                                    
+                                for j in range(len(lines)):
                                     lines[j][k].set_ydata(y_data[j][k])
                                     lines[j][k].set_xdata(x_data)
-                                    axs[j][k].draw_artist(axs[j][k].patch)
-                                    axs[j][k].draw_artist(lines[j][k])
+                                    axs[axs_idx[j]][k].draw_artist(lines[j][k])
+                                    
+                                for j in range(len(axs)):
                                     fig.canvas.blit(axs[j][k].bbox)
                                 
                             fig.canvas.flush_events()
@@ -361,30 +370,41 @@ def main(argv):
                                 y_data[rel_sen_2][PRESS_IDX][0] = y_data[rel_sen_2][PRESS_IDX][0] - rel_base
                                 y_data[atmospheric_sensor][PRESS_IDX][0] = y_data[atmospheric_sensor][PRESS_IDX][0] - ATMOSPHERIC_BASELINE
         
-                            fig, axs = plt.subplots(MAX_SENSORS, 2, figsize=(10,6), gridspec_kw={'width_ratios': [1, 5]})
+                            if (combined_plot):
+                                fig, axs2 = plt.subplots(1, 2, figsize=(10,6), gridspec_kw={'width_ratios': [1, 5]})
+                                axs[axs_idx[SENSOR_1]] = axs2
+                            else:
+                                fig, axs = plt.subplots(MAX_SENSORS, 2, figsize=(10,6), gridspec_kw={'width_ratios': [1, 5]})
                             
                             fig.subplots_adjust(hspace=.5)
                             
-                            lines[SENSOR_1][PRESS_IDX], = axs[SENSOR_1][PRESS_IDX].plot(x_data, y_data[SENSOR_1][PRESS_IDX],'tab:red')
-                            lines[SENSOR_2][PRESS_IDX], = axs[SENSOR_2][PRESS_IDX].plot(x_data, y_data[SENSOR_2][PRESS_IDX],'tab:green')
-                            lines[SENSOR_3][PRESS_IDX], = axs[SENSOR_3][PRESS_IDX].plot(x_data, y_data[SENSOR_3][PRESS_IDX],'tab:blue')
+                            lines[SENSOR_1][PRESS_IDX], = axs[axs_idx[SENSOR_1]][PRESS_IDX].plot(x_data, y_data[SENSOR_1][PRESS_IDX],'tab:red', label='press 1')
+                            lines[SENSOR_2][PRESS_IDX], = axs[axs_idx[SENSOR_2]][PRESS_IDX].plot(x_data, y_data[SENSOR_2][PRESS_IDX],'tab:green', label='press 2')
+                            lines[SENSOR_3][PRESS_IDX], = axs[axs_idx[SENSOR_3]][PRESS_IDX].plot(x_data, y_data[SENSOR_3][PRESS_IDX],'tab:blue', label='press 3')
                             
-                            lines[SENSOR_1][TEMP_IDX], = axs[SENSOR_1][TEMP_IDX].plot(x_data, y_data[SENSOR_1][TEMP_IDX],'tab:pink')
-                            lines[SENSOR_2][TEMP_IDX], = axs[SENSOR_2][TEMP_IDX].plot(x_data, y_data[SENSOR_2][TEMP_IDX],'tab:olive')
-                            lines[SENSOR_3][TEMP_IDX], = axs[SENSOR_3][TEMP_IDX].plot(x_data, y_data[SENSOR_3][TEMP_IDX],'tab:cyan')
+                            lines[SENSOR_1][TEMP_IDX], = axs[axs_idx[SENSOR_1]][TEMP_IDX].plot(x_data, y_data[SENSOR_1][TEMP_IDX],'tab:pink', label='temp 1')
+                            lines[SENSOR_2][TEMP_IDX], = axs[axs_idx[SENSOR_2]][TEMP_IDX].plot(x_data, y_data[SENSOR_2][TEMP_IDX],'tab:olive', label='temp 2')
+                            lines[SENSOR_3][TEMP_IDX], = axs[axs_idx[SENSOR_3]][TEMP_IDX].plot(x_data, y_data[SENSOR_3][TEMP_IDX],'tab:cyan', label='temp 3')
                             
-                            axs[SENSOR_1][PRESS_IDX].set_title('Pressure 1')
-                            axs[SENSOR_2][PRESS_IDX].set_title('Pressure 2')
-                            axs[SENSOR_3][PRESS_IDX].set_title('Pressure 3')
+                            if (combined_plot):
+                                axs[axs_idx[SENSOR_1]][PRESS_IDX].set_title('Pressure')
+                            else:
+                                axs[axs_idx[SENSOR_1]][PRESS_IDX].set_title('Pressure 1')
+                                axs[axs_idx[SENSOR_2]][PRESS_IDX].set_title('Pressure 2')
+                                axs[axs_idx[SENSOR_3]][PRESS_IDX].set_title('Pressure 3')
                             
-                            axs[SENSOR_2][PRESS_IDX].set_ylabel(units_str)
-                            axs[SENSOR_2][PRESS_IDX].yaxis.set_label_position("right")
-                            axs[SENSOR_3][PRESS_IDX].set_xlabel('t - seconds')
+                            axs[axs_idx[SENSOR_2]][PRESS_IDX].set_ylabel(units_str)
+                            axs[axs_idx[SENSOR_2]][PRESS_IDX].yaxis.set_label_position("right")
+                            axs[axs_idx[SENSOR_3]][PRESS_IDX].set_xlabel('t - seconds')
                             
-                            axs[SENSOR_1][TEMP_IDX].set_title('Temperature 1')
-                            axs[SENSOR_2][TEMP_IDX].set_title('Temperature 2')
-                            axs[SENSOR_3][TEMP_IDX].set_title('Temperature 3')
-                            axs[SENSOR_2][TEMP_IDX].set_ylabel('°C')
+                            if (combined_plot):
+                                axs[axs_idx[SENSOR_1]][TEMP_IDX].set_title('Temperature')
+                            else:
+                                axs[axs_idx[SENSOR_1]][TEMP_IDX].set_title('Temperature 1')
+                                axs[axs_idx[SENSOR_2]][TEMP_IDX].set_title('Temperature 2')
+                                axs[axs_idx[SENSOR_3]][TEMP_IDX].set_title('Temperature 3')
+                            
+                            axs[axs_idx[SENSOR_2]][TEMP_IDX].set_ylabel('°C')
                             
                             for j in range(len(axs)):
                                 axs[j][PRESS_IDX].set_xlim(x_upper_bound, x_lower_bound)
@@ -401,6 +421,10 @@ def main(argv):
                                 axs[j][TEMP_IDX].yaxis.set_major_locator(AutoLocator())
                                 axs[j][TEMP_IDX].yaxis.set_major_formatter(FormatStrFormatter('%d'))
                                 axs[j][TEMP_IDX].yaxis.set_minor_locator(AutoMinorLocator())
+                                
+                                if (combined_plot):
+                                    axs[j][PRESS_IDX].legend()
+                                    axs[j][TEMP_IDX].legend()
                             
                             plt.show(block=False)
                             
