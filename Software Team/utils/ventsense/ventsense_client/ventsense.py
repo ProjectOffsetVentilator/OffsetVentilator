@@ -79,6 +79,8 @@ PRESS_IDX = 1
 
 SAMPLE_RATE = 10.0 #Hz
 
+ATMOSPHERIC_BASELINE = 1013 #hPa at sea level
+
 #if running python 3, import open
 if (sys.version_info > (3, 0)):
     from io import open
@@ -91,8 +93,9 @@ def printHelp():
     print ('usage: python ventsense.py -p <serial port> [-c]')
     print ('')
     print ('options:')
-    print ('    -c                   echo sensor data to the console')
+    print ('    -c <true/false>      echo sensor data to the console')
     print ('    -h                   help. I.e., print this screen')
+    print ('    -p <serial port>     name of serial port Arduino is attached to (required)')
     print ('    -p <serial port>     name of serial port Arduino is attached to (required)')
 
 def startNewLogFile():
@@ -101,40 +104,28 @@ def startNewLogFile():
 
     return open(csv_str, "a");
     
+def isStrTrue(in_str):
+    return in_str.lower() in ['true', 'yes', 'y', '1', 'show', 'enable', 'on']
 
 def main(argv):
+    global ATMOSPHERIC_BASELINE
     ser_str = u''
-#    serial_port_name = ''
-#    console_output = False
-#    plot_enabled = True
     first_read = True
     units_cmh2o = False
-#    combined_plot = False
-#    relative_plot = False
-#    atmospheric_sensor = SENSOR_1
-#    x_width = 200.0
-#    x_upper_bound_press = x_width / SAMPLE_RATE
-#    x_lower_bound_press = 0.0 / SAMPLE_RATE
-#    x_upper_bound_temp = x_width / SAMPLE_RATE
-#    x_lower_bound_temp = 0.0 / SAMPLE_RATE
-#    y_upper_bound_press = 1080
-#    y_lower_bound_press = 1000
-#    y_upper_bound_temp = 35
-#    y_lower_bound_temp = 15
     
     #attempt to read config file
     config = configparser.ConfigParser()
     config.read('settings.ini')
     console_output = config.getboolean('SETTINGS', 'console_output', fallback=False)
     plot_enabled = config.getboolean('SETTINGS', 'plot_enabled', fallback=True)
-    combined_plot = config.getboolean('SETTINGS', 'combined_plot', fallback=False)
+    combined_plot = config.getboolean('SETTINGS', 'combined_plot', fallback=False)#TODO
     relative_plot = config.getboolean('SETTINGS', 'relative_plot', fallback=False)
-    atmospheric_sensor = config.getint('SETTINGS', 'atmospheric_sensor', fallback=1)    
-    x_width = config.getint('SETTINGS', 'x_width', fallback=200)
-    y_upper_bound_press = config.getint('SETTINGS', 'pressure_y_upper_bound', fallback=1080)
-    y_lower_bound_press = config.getint('SETTINGS', 'pressure_y_lower_bound', fallback=1000)
-    y_upper_bound_temp = config.getint('SETTINGS', 'temperature_y_upper_bound', fallback=35)
-    y_lower_bound_temp = config.getint('SETTINGS', 'temperature_y_lower_bound', fallback=15)
+    atmospheric_sensor = config.getint('SETTINGS', 'atmospheric_sensor', fallback=1)
+    x_width = config.getfloat('SETTINGS', 'x_width', fallback=200)
+    y_upper_bound_press = config.getfloat('SETTINGS', 'pressure_y_upper_bound', fallback=1080)
+    y_lower_bound_press = config.getfloat('SETTINGS', 'pressure_y_lower_bound', fallback=1000)
+    y_upper_bound_temp = config.getfloat('SETTINGS', 'temperature_y_upper_bound', fallback=35)
+    y_lower_bound_temp = config.getfloat('SETTINGS', 'temperature_y_lower_bound', fallback=15)
     units_str = config.get('SETTINGS', 'pressure_units', fallback='cmh2o')
     serial_port_name = config.get('SETTINGS', 'serial_port', fallback=None)
     
@@ -155,7 +146,7 @@ def main(argv):
     
     #parse command line options
     try:
-        opts, args = getopt.getopt(argv,"hcrwp:a:", ["combined", "relative", "atmospheric=", "press-y-max=", "press-y-min=", "temp-y-max=", "temp-y-min=", "x-width=", "cmh2o", "noplot"])
+        opts, args = getopt.getopt(argv,"hc:r:w:p:a:", ["combined=", "relative=", "atmospheric=", "press-y-max=", "press-y-min=", "temp-y-max=", "temp-y-min=", "x-width=", "press-units=", "show-plot=","show-console="])
     except getopt.GetoptError:
         printHelp()
         sys.exit(2)
@@ -165,14 +156,14 @@ def main(argv):
             sys.exit()
         elif opt == '-p':
             serial_port_name = arg
-        elif opt == '-c':
-            console_output = True
+        elif opt in ('-c','--show-console'):
+            console_output = isStrTrue(arg)
         elif opt == '-p':
             serial_port_name = arg
         elif opt == '--combined':
-            combined_plot = True
+            combined_plot = isStrTrue(arg)
         elif opt in ('-r', '--relative'):
-            relative_plot = True
+            relative_plot = isStrTrue(arg)
         elif opt in ('-a', '--atmospheric'):
             if (arg == '1'):
                 atmospheric_sensor = SENSOR_1
@@ -193,7 +184,7 @@ def main(argv):
         elif opt == '--temp-y-min':
             y_lower_bound_temp = float(arg)
         elif opt in ('-w', '--x-width'):
-            x_width = int(arg)
+            x_width = float(arg)
             if (x_width > 10000) or (x_width < 0):
                 print("x-width value must be between 0 and 10000")
                 sys.exit()
@@ -201,10 +192,10 @@ def main(argv):
             x_lower_bound_press = 0.0 / SAMPLE_RATE
             x_upper_bound_temp = float(x_width) / SAMPLE_RATE
             x_lower_bound_temp = 0.0 / SAMPLE_RATE
-        elif opt in ('--cmh2o', '--cmH2O'):
-            units_cmh2o = True
-        elif opt == '--noplot':
-            plot_enabled = False
+        elif opt == '--press-units':
+            units_cmh2o = (arg.lower() == 'cmh2o')
+        elif opt == '--show-plot':
+            plot_enabled = isStrTrue(arg)
         else:
             print("Unknown argument: " + opt)
             printHelp()
@@ -217,9 +208,9 @@ def main(argv):
 
     else:
         #save settings
-        units_str = 'hpa'
+        units_str = 'hPa'
         if units_cmh2o:
-            units_str = 'cmh2o'
+            units_str = 'cmH2O'
             
         if (not config.has_section('SETTINGS')):
             config.add_section('SETTINGS')
@@ -258,6 +249,12 @@ def main(argv):
         x_data = None
         
         i=0
+        
+        c = 1.0
+        if units_cmh2o:
+            c = 1.01974
+            
+        ATMOSPHERIC_BASELINE = ATMOSPHERIC_BASELINE * c
 
         #continually listen to serial stream and pass it through to CSV log file
         while True:
@@ -300,15 +297,30 @@ def main(argv):
 
                     if ((len(str_tokens) >= 7) and (ser_str[0:4] != 'time')) and plot_enabled:
                         if i > 0:
-                            y_data[SENSOR_1][PRESS_IDX] = [float(str_tokens[2])] + y_data[SENSOR_1][PRESS_IDX]
-                            y_data[SENSOR_2][PRESS_IDX] = [float(str_tokens[4])] + y_data[SENSOR_2][PRESS_IDX]
-                            y_data[SENSOR_3][PRESS_IDX] = [float(str_tokens[6])] + y_data[SENSOR_3][PRESS_IDX]
+                            y_data[SENSOR_1][PRESS_IDX] = [float(str_tokens[2]) * c] + y_data[SENSOR_1][PRESS_IDX]
+                            y_data[SENSOR_2][PRESS_IDX] = [float(str_tokens[4]) * c] + y_data[SENSOR_2][PRESS_IDX]
+                            y_data[SENSOR_3][PRESS_IDX] = [float(str_tokens[6]) * c] + y_data[SENSOR_3][PRESS_IDX]
                             
                             y_data[SENSOR_1][TEMP_IDX] = [float(str_tokens[1])] + y_data[SENSOR_1][TEMP_IDX]
                             y_data[SENSOR_2][TEMP_IDX] = [float(str_tokens[3])] + y_data[SENSOR_2][TEMP_IDX]
                             y_data[SENSOR_3][TEMP_IDX] = [float(str_tokens[5])] + y_data[SENSOR_3][TEMP_IDX]
                             
                             x_data = np.append(x_data,float(i)/SAMPLE_RATE)
+                            
+                            if (relative_plot):
+                                rel_base = y_data[atmospheric_sensor][PRESS_IDX][0]
+                                
+                                rel_sen_1 = atmospheric_sensor + 1
+                                rel_sen_2 = atmospheric_sensor + 2
+                                
+                                if rel_sen_1 > 2:
+                                    rel_sen_1 = rel_sen_1 - 3
+                                if rel_sen_2 > 2:
+                                    rel_sen_2 = rel_sen_2 - 3
+                                    
+                                y_data[rel_sen_1][PRESS_IDX][0] = y_data[rel_sen_1][PRESS_IDX][0] - rel_base
+                                y_data[rel_sen_2][PRESS_IDX][0] = y_data[rel_sen_2][PRESS_IDX][0] - rel_base
+                                y_data[atmospheric_sensor][PRESS_IDX][0] = y_data[atmospheric_sensor][PRESS_IDX][0] - ATMOSPHERIC_BASELINE
                             
                             for j in range(len(lines)):
                                 for k in range(len(lines[j])):
@@ -320,15 +332,30 @@ def main(argv):
                                 
                             fig.canvas.flush_events()
                         else:
-                            y_data[SENSOR_1][PRESS_IDX] = [str_tokens[2]]
-                            y_data[SENSOR_2][PRESS_IDX] = [str_tokens[4]]
-                            y_data[SENSOR_3][PRESS_IDX] = [str_tokens[6]]
+                            y_data[SENSOR_1][PRESS_IDX] = [float(str_tokens[2]) * c]
+                            y_data[SENSOR_2][PRESS_IDX] = [float(str_tokens[4]) * c]
+                            y_data[SENSOR_3][PRESS_IDX] = [float(str_tokens[6]) * c]
                             
-                            y_data[SENSOR_1][TEMP_IDX] = [str_tokens[1]]
-                            y_data[SENSOR_2][TEMP_IDX] = [str_tokens[3]]
-                            y_data[SENSOR_3][TEMP_IDX] = [str_tokens[5]]
+                            y_data[SENSOR_1][TEMP_IDX] = [float(str_tokens[1])]
+                            y_data[SENSOR_2][TEMP_IDX] = [float(str_tokens[3])]
+                            y_data[SENSOR_3][TEMP_IDX] = [float(str_tokens[5])]
                             
                             x_data = np.array(float(i))
+                            
+                            if (relative_plot):
+                                rel_base = y_data[atmospheric_sensor][PRESS_IDX][0]
+                                
+                                rel_sen_1 = atmospheric_sensor + 1
+                                rel_sen_2 = atmospheric_sensor + 2
+                                
+                                if rel_sen_1 > 2:
+                                    rel_sen_1 = rel_sen_1 - 3
+                                if rel_sen_2 > 2:
+                                    rel_sen_2 = rel_sen_2 - 3
+                                    
+                                y_data[rel_sen_1][PRESS_IDX][0] = y_data[rel_sen_1][PRESS_IDX][0] - rel_base
+                                y_data[rel_sen_2][PRESS_IDX][0] = y_data[rel_sen_2][PRESS_IDX][0] - rel_base
+                                y_data[atmospheric_sensor][PRESS_IDX][0] = y_data[atmospheric_sensor][PRESS_IDX][0] - ATMOSPHERIC_BASELINE
         
                             fig, axs = plt.subplots(MAX_SENSORS, 2, figsize=(10,6), gridspec_kw={'width_ratios': [1, 5]})
                             
@@ -346,7 +373,7 @@ def main(argv):
                             axs[SENSOR_2][PRESS_IDX].set_title('Pressure 2')
                             axs[SENSOR_3][PRESS_IDX].set_title('Pressure 3')
                             
-                            axs[SENSOR_2][PRESS_IDX].set_ylabel('hPa')
+                            axs[SENSOR_2][PRESS_IDX].set_ylabel(units_str)
                             axs[SENSOR_2][PRESS_IDX].yaxis.set_label_position("right")
                             axs[SENSOR_3][PRESS_IDX].set_xlabel('t - seconds')
                             
