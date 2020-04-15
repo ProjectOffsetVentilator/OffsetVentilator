@@ -118,6 +118,9 @@
 // the sensor communicates using SPI, so include the library:
 #include <SPI.h>
 
+//#define SIM_SENSOR_2
+//#define SIM_SENSOR_3
+
 //Sensor's memory register addresses:
 const byte NVM_PAR_T1_7_0 = 0x31;
 const byte DATA_0    = 0x04;
@@ -142,7 +145,8 @@ typedef enum
 {
     SENSOR_1,
     SENSOR_2,
-    SENSOR_3
+    SENSOR_3,
+    MAX_SENSORS
 } sensor_ID_t;
 
 // pins used for the connection with the sensor
@@ -231,8 +235,18 @@ void loop() {
     double pressure[3] = {0};
 
     getPressureSensorData(SENSOR_1, &temperature[SENSOR_1], &pressure[SENSOR_1]);
-    getPressureSensorData(SENSOR_2, &temperature[SENSOR_2], &pressure[SENSOR_2]);
-    getPressureSensorData(SENSOR_3, &temperature[SENSOR_3], &pressure[SENSOR_3]);
+    
+    #ifndef SIM_SENSOR_2
+      getPressureSensorData(SENSOR_2, &temperature[SENSOR_2], &pressure[SENSOR_2]);
+    #else
+      simTriangle(SENSOR_2, &temperature[SENSOR_2], &pressure[SENSOR_2]);
+    #endif
+
+    #ifndef SIM_SENSOR_3
+      getPressureSensorData(SENSOR_3, &temperature[SENSOR_3], &pressure[SENSOR_3]);
+    #else
+      simTriangle(SENSOR_3, &temperature[SENSOR_3], &pressure[SENSOR_3]);
+    #endif 
     
     // display the sensor data
     Serial.print(currentMillis);
@@ -311,6 +325,38 @@ unsigned int getPressureSensorData(sensor_ID_t sensor, double* temperature, doub
 
   *temperature = compensate_temperature(temperatureData, &cal_data[sensor]);
   *pressure = compensate_pressure(pressureData, &cal_data[sensor]);
+}
+
+unsigned int simTriangle(sensor_ID_t sensor, double* temperature, double* pressure)
+{
+  static bool up[MAX_SENSORS] = {true,true,true};
+  static int i[MAX_SENSORS] = {0};
+  static double pres[MAX_SENSORS] = {101300.0,101300.0,101300.0};
+  static double temp[MAX_SENSORS] = {23.3,23.3,23.3};
+
+  if (up[sensor])
+  {
+    if (i[sensor] > 40)
+      up[sensor] = false;
+
+    pres[sensor] = pres[sensor] + 100;
+    temp[sensor] = temp[sensor] + 0.02;
+      
+    i[sensor]++;
+  }
+  else
+  {
+    if (i[sensor] < 0)
+      up[sensor] = true;
+
+    pres[sensor] = pres[sensor] - 100;
+    temp[sensor] = temp[sensor] - 0.02;
+    
+    i[sensor]--;
+  }
+
+  *temperature = temp[sensor];
+  *pressure = pres[sensor];
 }
 
 static void parse_calib_data(const uint8_t *raw_cal, bmp3_quantized_calib_data *cal)
