@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # ventsense.py
 # v0.2-1
 # Created 4/03/2020
@@ -7,7 +8,7 @@
 # Purpose:
 # Reads streaming temperature and pressure sensor data from serial port and saves it to a Comma-
 # Separated Value (.csv) file. It is intended to interface with an Arduino reading sensor
-# data from a BMP-388. 
+# data from up to 3 BMP-388 sensors. 
 #
 # Requirements:
 #   Hardware
@@ -22,8 +23,10 @@
 #        pre-built ventsense client executable (v0.2-x) for Windows or Linux (located in bin folder)
 #     or
 #        ventsense.py v0.2-x
-#        Python (tested on v2.7.10 and v3.6.8)
+#        Python (v3.5 or later)
 #        pySerial package
+#        matplotlib package
+#        numpy package
 #
 # Setup:
 # Wire BMP-388 to Arduino, per the Circuit section in the ventsense_fw readme. Connect Arduino 
@@ -171,7 +174,7 @@ def main(argv):
                         print(ser_str)
 
                     #if Arduino resets while listening, then start a new log file
-                    if ser_str[0] == 't':
+                    if ser_str[0:4] != 'time':
                         file.close()
                         file = startNewLogFile()
                     #if Arduino was already running when we started listening, write 
@@ -187,7 +190,7 @@ def main(argv):
                     #plot data
                     str_tokens = ser_str.split(',')
 
-                    if (len(str_tokens) >= 7):
+                    if ((len(str_tokens) >= 7) and (ser_str[0:4] != 'time')):
                         if i > 0:
                             y_data[SENSOR_1][PRESS_IDX] = [float(str_tokens[2])] + y_data[SENSOR_1][PRESS_IDX]
                             y_data[SENSOR_2][PRESS_IDX] = [float(str_tokens[4])] + y_data[SENSOR_2][PRESS_IDX]
