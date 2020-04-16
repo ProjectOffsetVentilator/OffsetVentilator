@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # ventsense.py
-# v0.2-1
+# v0.2-2
 # Created 4/03/2020
 # Clay Gilmore
 # Helpful Engineering
@@ -67,7 +67,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import configparser
 
-SW_VERSION = 'v0.2-1'
+SW_VERSION = 'v0.2-2'
 
 SENSOR_1 = 0
 SENSOR_2 = 1
@@ -90,7 +90,7 @@ list = []
 def printHelp():
     print ('ventsense_client ' + SW_VERSION)
     print ('')
-    print ('usage: python ventsense.py -p <serial port> [-c]')
+    print ('usage: python ventsense.py -p <serial port> [OPTIONS]')
     print ('')
     print ('options:')
     print ('    -a, --atmospheric=<sensor ID>   Set the sensor which is used as the base for relative pressure plot. Must be 1, ' +
@@ -102,13 +102,21 @@ def printHelp():
     print ('    -r, --relative=<true/false>     If true, plot pressures relative to atmospheric sensor. Else, plot\n' + 
            '                                    absolute pressure values')
     print ('    -w, --x-width=<seconds>         Number of seconds worth of data to display on plot')
-    print ('    --combined=<true/false>         If true, plot all sensors on one pressure and one temperature plot, respectively. ' +
+    print ('    --combined=<true/false>         If true, plot all sensors on one pressure and one temperature plot, respectively. \n' +
            '                                    Else, draw a separate plot for each sensor')
-    print ('    --press-y-max=<number>          Set the upper bound on the pressure plot\'s Y axis')
-    print ('    --press-y-min=<number>          Set the lower bound on the pressure plot\'s Y axis')
-    print ('    --temp-y-max=<number>           Set the upper bound on the temperature plot\'s Y axis')
-    print ('    --temp-y-min=<number>           Set the lower bound on the temperature plot\'s Y axis')
+    print ('    --press-y-max=<number>          Set the upper bound on the pressure plot\'s Y axis. Ignored if y-autoscale=True')
+    print ('    --press-y-min=<number>          Set the lower bound on the pressure plot\'s Y axis. Ignored if y-autoscale=True')
+    print ('    --press-y-min-range=<number>    Set the minimum range of the pressure plot\'s Y axis. Ignored if y-autoscale=False')
+    print ('    --temp-y-max=<number>           Set the upper bound on the temperature plot\'s Y axis. Ignored if y-autoscale=True')
+    print ('    --temp-y-min=<number>           Set the lower bound on the temperature plot\'s Y axis. Ignored if y-autoscale=True')
+    print ('    --temp-y-min-range=<number>     Set the minimum range of the temperature plot\'s Y axis. Ignored if y-autoscale=False')
     print ('    --use-cmh2o=<true/false>        If true, display pressure data in cmH2O on plot. Else, use hPa')
+    print ('    --y-autoscale=<true/false>      If true, automatically scale Y axis to the plot data, to a minimum of y-min-range. \n' +
+           '                                    Else, use selected y upper and lower bounds')
+    print ('')
+    print ('NOTE: Options are "sticky." I.e., once an option is set, it is saved in settings.ini and will be used for subsequent\n' + 
+           '      executions, until that option is set to a new value. Options can be set either using the command line or by\n' +
+           '      editing settings.ini directly.')
     
 
 def startNewLogFile():
@@ -136,14 +144,14 @@ def main(argv):
     relative_plot = config.getboolean('SETTINGS', 'relative_plot', fallback=False)
     atmospheric_sensor = config.getint('SETTINGS', 'atmospheric_sensor', fallback=1)
     x_width = config.getfloat('SETTINGS', 'x_width', fallback=20.0)
-    y_upper_bound_press = config.getfloat('SETTINGS', 'pressure_y_upper_bound', fallback=1100)
-    y_lower_bound_press = config.getfloat('SETTINGS', 'pressure_y_lower_bound', fallback=1000)
-    y_upper_bound_temp = config.getfloat('SETTINGS', 'temperature_y_upper_bound', fallback=35)
-    y_lower_bound_temp = config.getfloat('SETTINGS', 'temperature_y_lower_bound', fallback=15)
+    y_upper_bound_press = config.getfloat('SETTINGS', 'pressure_y_upper_bound', fallback=1100.0)
+    y_lower_bound_press = config.getfloat('SETTINGS', 'pressure_y_lower_bound', fallback=1000.0)
+    y_upper_bound_temp = config.getfloat('SETTINGS', 'temperature_y_upper_bound', fallback=35.0)
+    y_lower_bound_temp = config.getfloat('SETTINGS', 'temperature_y_lower_bound', fallback=15.0)
     units_cmh2o = config.getboolean('SETTINGS', 'use_cmh2o', fallback=True)
     y_autoscale = config.getboolean('SETTINGS', 'y_autoscale', fallback=True)
-    y_min_range[PRESS_IDX] = config.getfloat('SETTINGS', 'pressure_y_min_range', fallback=20)
-    y_min_range[TEMP_IDX] = config.getfloat('SETTINGS', 'temperature_y_min_range', fallback=5)
+    y_min_range[PRESS_IDX] = config.getfloat('SETTINGS', 'pressure_y_min_range', fallback=20.0)
+    y_min_range[TEMP_IDX] = config.getfloat('SETTINGS', 'temperature_y_min_range', fallback=5.0)
     serial_port_name = config.get('SETTINGS', 'serial_port', fallback=None)
     
     if (atmospheric_sensor > 3) or (atmospheric_sensor < 1):
@@ -267,6 +275,10 @@ def main(argv):
         y_data = [[None, None],[None, None],[None, None]]
         x_data = None
         leg = [None, None]
+        y_low_prev = [[0, 0],[0, 0],[0, 0]]
+        y_high_prev = [[0, 0],[0, 0],[0, 0]]
+        y_large_rescale_debounce = [[0, 0],[0, 0],[0, 0]]
+        y_small_rescale_debounce = [[0, 0],[0, 0],[0, 0]]
         
         if (combined_plot):
             axs = [[None, None]]
@@ -274,6 +286,7 @@ def main(argv):
         
         i=0
         
+        #set up unit string and conversion factor, based on user selection
         units_str = 'hPa'
         c = 1.0
         if units_cmh2o:
@@ -323,6 +336,10 @@ def main(argv):
 
                     if ((len(str_tokens) >= 7) and (ser_str[0:4] != 'time')) and plot_enabled:
                         if i > 0:
+                            #each time through after the first, update the line data and redraw only the area inside the axes (unless rescaling due 
+                            #to autoscale). We save time and thereby acheive smoother animation by redrawing only the graphical elements that have changed
+                            
+                            #add new y data to front of series (this allows data to scroll from right to left)
                             y_data[SENSOR_1][PRESS_IDX] = [float(str_tokens[2]) * c] + y_data[SENSOR_1][PRESS_IDX]
                             y_data[SENSOR_2][PRESS_IDX] = [float(str_tokens[4]) * c] + y_data[SENSOR_2][PRESS_IDX]
                             y_data[SENSOR_3][PRESS_IDX] = [float(str_tokens[6]) * c] + y_data[SENSOR_3][PRESS_IDX]
@@ -333,6 +350,7 @@ def main(argv):
                             
                             x_data = np.append(x_data,float(i)/SAMPLE_RATE)
                             
+                            #if relative plot is selected, recalculate y data from absolute to relative values
                             if (relative_plot):
                                 rel_base = y_data[atmospheric_sensor][PRESS_IDX][0]
                                 
@@ -347,8 +365,11 @@ def main(argv):
                                 y_data[rel_sen_1][PRESS_IDX][0] = y_data[rel_sen_1][PRESS_IDX][0] - rel_base
                                 y_data[rel_sen_2][PRESS_IDX][0] = y_data[rel_sen_2][PRESS_IDX][0] - rel_base
                                 y_data[atmospheric_sensor][PRESS_IDX][0] = y_data[atmospheric_sensor][PRESS_IDX][0] - ATMOSPHERIC_BASELINE
+                                
+                            redraw = False
                             
-                            #if Y autoscale is enabled, recalculate and redraw axes once per second
+                            #if Y autoscale is enabled, recalculate the axis range once per second. Note: the axis is only drawn to the newly-
+                            #rescaled range if certain conditions are met (see below), to avoid rescaling too often
                             if (y_autoscale) and ((i % SAMPLE_RATE) == 0):
                                 y_low = [0, 0, 0]
                                 y_high = [0, 0, 0]
@@ -366,24 +387,63 @@ def main(argv):
                                             y_range[SENSOR_1] = y_high[SENSOR_1] - y_low[SENSOR_1]
                                     
                                     for j in range(len(axs)):
-                                        #if y range is smaller than minimum, resize it to the minimum
+                                        #if Y range is smaller than minimum, resize it to the minimum
                                         if (y_range[j] < y_min_range[k]):
                                             y_avg = (y_high[j] + y_low[j]) / 2
                                             y_high[j] = y_avg + (y_min_range[k] / 2)
                                             y_low[j] = y_avg - (y_min_range[k] / 2)
+                                            y_range[j] = y_high[j] - y_low[j]
                                         else:
-                                            #if y range is greater than min, add 5% margin, so the high and low points aren't up against the border
+                                            #if Y range is greater than min, add 5% margin, so the high and low points aren't up against the border
                                             y_high[j] = y_high[j] + (y_range[j] * 0.05)
                                             y_low[j] = y_low[j] - (y_range[j] * 0.05)
+
+                                        y_prev_range = y_high_prev[j][k] - y_low_prev[j][k]
                                         
-                                        axs[j][k].set_ylim(y_low[j], y_high[j])
-                                
-                                    for j in range(len(lines)):
-                                        lines[j][k].set_ydata(y_data[j][k])
-                                        lines[j][k].set_xdata(x_data)
-                                
+                                        #if the Y range is already at the minimum, do not rescale unless the lines extend outside of the existing range
+                                        if (not ((y_prev_range == y_min_range[k]) and (y_range[j] == y_min_range[k])) or
+                                                (y_high[j] > y_high_prev[j][k]) or 
+                                                (y_low[j] > y_low_prev[j][k])):
+                                            y_high_diff = abs(y_high_prev[j][k] - y_high[j])
+                                            y_low_diff = abs(y_low_prev[j][k] - y_low[j])
+                                            y_large_diff = y_range[j] * 0.20
+                                            y_small_diff = y_range[j] * 0.01
+                                            
+                                            #ensure that we are not redrawing the whole plot too often, as it slows down animation. Rescale more often
+                                            #for large differences and less often for small differences
+                                            if (y_high_diff > y_small_diff) or (y_low_diff > y_small_diff):
+                                                y_small_rescale_debounce[j][k] += 1
+                                                
+                                                if (y_small_rescale_debounce[j][k] >= 5):
+                                                    redraw = True
+                                                    axs[j][k].set_ylim(y_low[j], y_high[j])
+                                                    y_high_prev[j][k] = y_high[j]
+                                                    y_low_prev[j][k] = y_low[j]
+                                                    y_small_rescale_debounce[j][k] = 0
+                                            else:
+                                                y_small_rescale_debounce[j][k] = 0
+                                                
+                                            if (y_high_diff > y_large_diff) or (y_low_diff > y_large_diff):
+                                                y_large_rescale_debounce[j][k] += 1
+
+                                                if (y_large_rescale_debounce[j][k] >= 2):
+                                                    redraw = True
+                                                    axs[j][k].set_ylim(y_low[j], y_high[j])
+                                                    y_high_prev[j][k] = y_high[j]
+                                                    y_low_prev[j][k] = y_low[j]
+                                                    y_large_rescale_debounce[j][k] = 0
+                                            else:
+                                                y_large_rescale_debounce[j][k] = 0
+                                        else:
+                                            y_small_rescale_debounce[j][k] = 0
+                                            y_large_rescale_debounce[j][k] = 0
+
+                            if redraw:
+                                for j in range(len(lines)):
+                                    lines[j][k].set_ydata(y_data[j][k])
+                                    lines[j][k].set_xdata(x_data)
+                                    
                                 fig.canvas.draw()
-                                        
                             else:
                                 for k in (PRESS_IDX, TEMP_IDX):
                                     for j in range(len(axs)):
@@ -402,6 +462,7 @@ def main(argv):
                                 
                                 fig.canvas.flush_events()
                         else:
+                            #on the first time through, initialize and draw the plot
                             y_data[SENSOR_1][PRESS_IDX] = [float(str_tokens[2]) * c]
                             y_data[SENSOR_2][PRESS_IDX] = [float(str_tokens[4]) * c]
                             y_data[SENSOR_3][PRESS_IDX] = [float(str_tokens[6]) * c]
@@ -412,6 +473,7 @@ def main(argv):
                             
                             x_data = np.array(float(i))
                             
+                            #if relative plot is selected, recalculate y data from absolute to relative values
                             if (relative_plot):
                                 rel_base = y_data[atmospheric_sensor][PRESS_IDX][0]
                                 
@@ -427,6 +489,8 @@ def main(argv):
                                 y_data[rel_sen_2][PRESS_IDX][0] = y_data[rel_sen_2][PRESS_IDX][0] - rel_base
                                 y_data[atmospheric_sensor][PRESS_IDX][0] = y_data[atmospheric_sensor][PRESS_IDX][0] - ATMOSPHERIC_BASELINE
         
+                            #if combined plot is selected, only two plots - one for temperature and one for pressure. Else, draw six plots, one
+                            #for temperature and one for pressure for each sensor.
                             if (combined_plot):
                                 fig, axs2 = plt.subplots(1, 2, figsize=(10,6), gridspec_kw={'width_ratios': [1, 5]})
                                 axs[axs_idx[SENSOR_1]] = axs2
@@ -435,13 +499,13 @@ def main(argv):
                             
                             fig.subplots_adjust(hspace=.5)
                             
-                            lines[SENSOR_1][PRESS_IDX], = axs[axs_idx[SENSOR_1]][PRESS_IDX].plot(x_data, y_data[SENSOR_1][PRESS_IDX],'tab:red', label='press 1')
-                            lines[SENSOR_2][PRESS_IDX], = axs[axs_idx[SENSOR_2]][PRESS_IDX].plot(x_data, y_data[SENSOR_2][PRESS_IDX],'tab:green', label='press 2')
-                            lines[SENSOR_3][PRESS_IDX], = axs[axs_idx[SENSOR_3]][PRESS_IDX].plot(x_data, y_data[SENSOR_3][PRESS_IDX],'tab:blue', label='press 3')
+                            lines[SENSOR_1][PRESS_IDX], = axs[axs_idx[SENSOR_1]][PRESS_IDX].plot(x_data, y_data[SENSOR_1][PRESS_IDX],'red', label='press 1')
+                            lines[SENSOR_2][PRESS_IDX], = axs[axs_idx[SENSOR_2]][PRESS_IDX].plot(x_data, y_data[SENSOR_2][PRESS_IDX],'green', label='press 2')
+                            lines[SENSOR_3][PRESS_IDX], = axs[axs_idx[SENSOR_3]][PRESS_IDX].plot(x_data, y_data[SENSOR_3][PRESS_IDX],'blue', label='press 3')
                             
-                            lines[SENSOR_1][TEMP_IDX], = axs[axs_idx[SENSOR_1]][TEMP_IDX].plot(x_data, y_data[SENSOR_1][TEMP_IDX],'tab:pink', label='temp 1')
-                            lines[SENSOR_2][TEMP_IDX], = axs[axs_idx[SENSOR_2]][TEMP_IDX].plot(x_data, y_data[SENSOR_2][TEMP_IDX],'tab:olive', label='temp 2')
-                            lines[SENSOR_3][TEMP_IDX], = axs[axs_idx[SENSOR_3]][TEMP_IDX].plot(x_data, y_data[SENSOR_3][TEMP_IDX],'tab:cyan', label='temp 3')
+                            lines[SENSOR_1][TEMP_IDX], = axs[axs_idx[SENSOR_1]][TEMP_IDX].plot(x_data, y_data[SENSOR_1][TEMP_IDX],'pink', label='temp 1')
+                            lines[SENSOR_2][TEMP_IDX], = axs[axs_idx[SENSOR_2]][TEMP_IDX].plot(x_data, y_data[SENSOR_2][TEMP_IDX],'olive', label='temp 2')
+                            lines[SENSOR_3][TEMP_IDX], = axs[axs_idx[SENSOR_3]][TEMP_IDX].plot(x_data, y_data[SENSOR_3][TEMP_IDX],'cyan', label='temp 3')
                             
                             if (combined_plot):
                                 axs[axs_idx[SENSOR_1]][PRESS_IDX].set_title('Pressure')
@@ -479,6 +543,7 @@ def main(argv):
                                 axs[j][TEMP_IDX].yaxis.set_major_formatter(FormatStrFormatter('%d'))
                                 axs[j][TEMP_IDX].yaxis.set_minor_locator(AutoMinorLocator())
                                 
+                                #draw legend only if using combined plot. Otherwise, plot labels alone are sufficient
                                 if (combined_plot):
                                     leg[PRESS_IDX] = axs[j][PRESS_IDX].legend()
                                     leg[TEMP_IDX] = axs[j][TEMP_IDX].legend()

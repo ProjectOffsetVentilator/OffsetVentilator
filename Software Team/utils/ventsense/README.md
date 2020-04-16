@@ -26,8 +26,10 @@ Software
      - pre-built ventsense client executable (v2.0-x) for Windows or Linux (located in bin folder)
    - or
      - ventsense.py v0.2-x
-     - Python (tested on v2.7.10 and v3.6.8)
+     - Python (v3.5.2 or later)
      - pySerial package
+	 - numpy package
+	 - matplotlib package
     
 ### Setup
 Wire BMP-388 to Arduino, per the Circuit section, below. Connect Arduino to computer via USB cable.
