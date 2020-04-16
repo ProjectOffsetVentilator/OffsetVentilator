@@ -125,13 +125,14 @@ def main(argv):
     ser_str = u''
     first_read = True
     units_cmh2o = False
+    y_min_range = [None, None]
     
     #attempt to read config file
     config = configparser.ConfigParser()
     config.read('settings.ini')
     console_output = config.getboolean('SETTINGS', 'console_output', fallback=False)
     plot_enabled = config.getboolean('SETTINGS', 'plot_enabled', fallback=True)
-    combined_plot = config.getboolean('SETTINGS', 'combined_plot', fallback=False)#TODO
+    combined_plot = config.getboolean('SETTINGS', 'combined_plot', fallback=False)
     relative_plot = config.getboolean('SETTINGS', 'relative_plot', fallback=False)
     atmospheric_sensor = config.getint('SETTINGS', 'atmospheric_sensor', fallback=1)
     x_width = config.getfloat('SETTINGS', 'x_width', fallback=20.0)
@@ -140,6 +141,9 @@ def main(argv):
     y_upper_bound_temp = config.getfloat('SETTINGS', 'temperature_y_upper_bound', fallback=35)
     y_lower_bound_temp = config.getfloat('SETTINGS', 'temperature_y_lower_bound', fallback=15)
     units_cmh2o = config.getboolean('SETTINGS', 'use_cmh2o', fallback=True)
+    y_autoscale = config.getboolean('SETTINGS', 'y_autoscale', fallback=True)
+    y_min_range[PRESS_IDX] = config.getfloat('SETTINGS', 'pressure_y_min_range', fallback=20)
+    y_min_range[TEMP_IDX] = config.getfloat('SETTINGS', 'temperature_y_min_range', fallback=5)
     serial_port_name = config.get('SETTINGS', 'serial_port', fallback=None)
     
     if (atmospheric_sensor > 3) or (atmospheric_sensor < 1):
@@ -154,25 +158,28 @@ def main(argv):
     
     #parse command line options
     try:
-        opts, args = getopt.getopt(argv,"hc:r:w:p:a:d:", ["combined=", "relative=", "atmospheric=", "press-y-max=", "press-y-min=", "temp-y-max=", "temp-y-min=", "x-width=", "use-cmh2o=", "show-plot=","show-console="])
+        opts, args = getopt.getopt(argv,"hc:r:w:p:a:d:", ["combined=", "relative=", "atmospheric=", "press-y-max=", "press-y-min=", 
+                                                          "temp-y-max=", "temp-y-min=", "x-width=", "use-cmh2o=", "show-plot=","show-console="
+                                                          "y-autoscale=", "press-y-min-range=", "temp-y-min-range="])
     except getopt.GetoptError:
         printHelp()
         sys.exit(2)
     for opt, arg in opts:
-        if opt.lower() == '-h':
+        opt = opt.lower()
+        if opt == '-h':
             printHelp()
             sys.exit()
-        elif opt.lower() == '-p':
+        elif opt == '-p':
             serial_port_name = arg
-        elif opt.lower() in ('-c','--show-console'):
+        elif opt in ('-c','--show-console'):
             console_output = isStrTrue(arg)
-        elif opt.lower() == '-p':
+        elif opt == '-p':
             serial_port_name = arg
         elif opt == '--combined':
             combined_plot = isStrTrue(arg)
-        elif opt.lower() in ('-r', '--relative'):
+        elif opt in ('-r', '--relative'):
             relative_plot = isStrTrue(arg)
-        elif opt.lower() in ('-a', '--atmospheric'):
+        elif opt in ('-a', '--atmospheric'):
             if (arg == '1'):
                 atmospheric_sensor = SENSOR_1
             elif (arg == '2'):
@@ -183,25 +190,31 @@ def main(argv):
                 print("Sensor value be equal to 1, 2, or 3. Invalid sensor: " + arg)
                 printHelp()
                 sys.exit()
-        elif opt.lower() == '--press-y-max':
+        elif opt == '--press-y-max':
             y_upper_bound_press = float(arg)
         elif opt == '--press-y-min':
             y_lower_bound_press = float(arg)
-        elif opt.lower() == '--temp-y-max':
+        elif opt == '--temp-y-max':
             y_upper_bound_temp = float(arg)
-        elif opt.lower() == '--temp-y-min':
+        elif opt == '--temp-y-min':
             y_lower_bound_temp = float(arg)
-        elif opt.lower() in ('-w', '--x-width'):
+        elif opt in ('-w', '--x-width'):
             x_width = float(arg)
             if (x_width > 1000.0) or (x_width < 0):
                 print("x-width value must be between 0 and 1000")
                 sys.exit()
             x_upper_bound = x_width
             x_lower_bound = 0.0
-        elif opt.lower() == '--use-cmh2o':
+        elif opt == '--use-cmh2o':
             units_cmh2o = isStrTrue(arg)
-        elif opt.lower() in ('-d', '--show-plot'):
+        elif opt in ('-d', '--show-plot'):
             plot_enabled = isStrTrue(arg)
+        elif opt == '--y-autoscale':
+            y_autoscale = isStrTrue(arg)
+        elif opt == '--press-y-min-range':
+            y_min_range[PRESS_IDX] = float(arg)
+        elif opt == '--temp-y-min-range':
+            y_min_range[TEMP_IDX] = float(arg)
         else:
             print("Unknown argument: " + opt)
             printHelp()
@@ -228,6 +241,9 @@ def main(argv):
         config.set('SETTINGS', 'temperature_y_upper_bound', str(y_upper_bound_temp))
         config.set('SETTINGS', 'temperature_y_lower_bound', str(y_lower_bound_temp))
         config.set('SETTINGS', 'use_cmh2o', str(units_cmh2o))
+        config.set('SETTINGS', 'y_autoscale', str(y_autoscale))
+        config.set('SETTINGS', 'pressure_y_min_range', str(y_min_range[PRESS_IDX]))
+        config.set('SETTINGS', 'temperature_y_min_range', str(y_min_range[TEMP_IDX]))
         config.set('SETTINGS', 'serial_port', serial_port_name)
         
         with open('settings.ini', 'w') as configfile:
@@ -332,22 +348,59 @@ def main(argv):
                                 y_data[rel_sen_2][PRESS_IDX][0] = y_data[rel_sen_2][PRESS_IDX][0] - rel_base
                                 y_data[atmospheric_sensor][PRESS_IDX][0] = y_data[atmospheric_sensor][PRESS_IDX][0] - ATMOSPHERIC_BASELINE
                             
-                            for k in (PRESS_IDX, TEMP_IDX):
-                                for j in range(len(axs)):
-                                    axs[j][k].draw_artist(axs[j][k].patch)
+                            #if Y autoscale is enabled, recalculate and redraw axes once per second
+                            if (y_autoscale) and ((i % SAMPLE_RATE) == 0):
+                                y_low = [0, 0, 0]
+                                y_high = [0, 0, 0]
+                                y_range = [0, 0, 0]
                                 
-                                for j in range(len(lines)):
-                                    lines[j][k].set_ydata(y_data[j][k])
-                                    lines[j][k].set_xdata(x_data)
-                                    axs[axs_idx[j]][k].draw_artist(lines[j][k])
+                                for k in (PRESS_IDX, TEMP_IDX):
+                                    for j in range(len(y_data)):
+                                        y_low[j] = min(y_data[j][k][0:int(x_width*SAMPLE_RATE)])
+                                        y_high[j] = max(y_data[j][k][0:int(x_width*SAMPLE_RATE)])
+                                        y_range[j] = y_high[j] - y_low[j]
+
+                                        if combined_plot:
+                                            y_low[SENSOR_1] = min([y_low[SENSOR_1], y_low[j]])
+                                            y_high[SENSOR_1] = max([y_high[SENSOR_1], y_high[j]])
+                                            y_range[SENSOR_1] = y_high[SENSOR_1] - y_low[SENSOR_1]
                                     
-                                if combined_plot:
-                                    axs[SENSOR_1][k].draw_artist(leg[k])
+                                    for j in range(len(axs)):
+                                        #if y range is smaller than minimum, resize it to the minimum
+                                        if (y_range[j] < y_min_range[k]):
+                                            y_avg = (y_high[j] + y_low[j]) / 2
+                                            y_high[j] = y_avg + (y_min_range[k] / 2)
+                                            y_low[j] = y_avg - (y_min_range[k] / 2)
+                                        else:
+                                            #if y range is greater than min, add 5% margin, so the high and low points aren't up against the border
+                                            y_high[j] = y_high[j] + (y_range[j] * 0.05)
+                                            y_low[j] = y_low[j] - (y_range[j] * 0.05)
+                                        
+                                        axs[j][k].set_ylim(y_low[j], y_high[j])
                                 
-                                for j in range(len(axs)):
-                                    fig.canvas.blit(axs[j][k].bbox)
-                            
-                            fig.canvas.flush_events()
+                                    for j in range(len(lines)):
+                                        lines[j][k].set_ydata(y_data[j][k])
+                                        lines[j][k].set_xdata(x_data)
+                                
+                                fig.canvas.draw()
+                                        
+                            else:
+                                for k in (PRESS_IDX, TEMP_IDX):
+                                    for j in range(len(axs)):
+                                        axs[j][k].draw_artist(axs[j][k].patch)
+                                    
+                                    for j in range(len(lines)):
+                                        lines[j][k].set_ydata(y_data[j][k])
+                                        lines[j][k].set_xdata(x_data)
+                                        axs[axs_idx[j]][k].draw_artist(lines[j][k])
+                                        
+                                    if combined_plot:
+                                        axs[SENSOR_1][k].draw_artist(leg[k])
+                                    
+                                    for j in range(len(axs)):
+                                        fig.canvas.blit(axs[j][k].bbox)
+                                
+                                fig.canvas.flush_events()
                         else:
                             y_data[SENSOR_1][PRESS_IDX] = [float(str_tokens[2]) * c]
                             y_data[SENSOR_2][PRESS_IDX] = [float(str_tokens[4]) * c]
@@ -429,6 +482,11 @@ def main(argv):
                                 if (combined_plot):
                                     leg[PRESS_IDX] = axs[j][PRESS_IDX].legend()
                                     leg[TEMP_IDX] = axs[j][TEMP_IDX].legend()
+                                
+                                axs[j][PRESS_IDX].spines['top'].set_color('lightgray')
+                                axs[j][PRESS_IDX].spines['left'].set_color('lightgray')
+                                axs[j][TEMP_IDX].spines['top'].set_color('lightgray')
+                                axs[j][TEMP_IDX].spines['left'].set_color('lightgray')
                             
                             plt.show(block=False)
                             
