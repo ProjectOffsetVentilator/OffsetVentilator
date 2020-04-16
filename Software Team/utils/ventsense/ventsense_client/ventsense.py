@@ -93,7 +93,7 @@ def printHelp():
     print ('usage: python ventsense.py -p <serial port> [OPTIONS]')
     print ('')
     print ('options:')
-    print ('    -a, --atmospheric=<sensor ID>   Set the sensor which is used as the base for relative pressure plot. Must be 1, ' +
+    print ('    -a, --atmospheric=<sensor ID>   Set the sensor which is used as the base for relative pressure plot. Must be 1, \n' +
            '                                    2, or 3. Defaults to 1')
     print ('    -c, --show-console=<true/false> If true, echo sensor data to the console. Else, hide console output')
     print ('    -d, --show-plot=<true/false>    If true, draw plot of sensor data in a new window. Else, hide plot')
@@ -387,6 +387,9 @@ def main(argv):
                                             y_range[SENSOR_1] = y_high[SENSOR_1] - y_low[SENSOR_1]
                                     
                                     for j in range(len(axs)):
+                                        y_high_raw = y_high[j]
+                                        y_low_raw = y_low[j]
+                                        
                                         #if Y range is smaller than minimum, resize it to the minimum
                                         if (y_range[j] < y_min_range[k]):
                                             y_avg = (y_high[j] + y_low[j]) / 2
@@ -402,8 +405,8 @@ def main(argv):
                                         
                                         #if the Y range is already at the minimum, do not rescale unless the lines extend outside of the existing range
                                         if (not ((y_prev_range == y_min_range[k]) and (y_range[j] == y_min_range[k])) or
-                                                (y_high[j] > y_high_prev[j][k]) or 
-                                                (y_low[j] > y_low_prev[j][k])):
+                                                (y_high_raw > y_high_prev[j][k]) or 
+                                                (y_low_raw < y_low_prev[j][k])):
                                             y_high_diff = abs(y_high_prev[j][k] - y_high[j])
                                             y_low_diff = abs(y_low_prev[j][k] - y_low[j])
                                             y_large_diff = y_range[j] * 0.20
