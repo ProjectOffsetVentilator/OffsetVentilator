@@ -167,7 +167,7 @@ def main(argv):
     #parse command line options
     try:
         opts, args = getopt.getopt(argv,"hc:r:w:p:a:d:", ["combined=", "relative=", "atmospheric=", "press-y-max=", "press-y-min=", 
-                                                          "temp-y-max=", "temp-y-min=", "x-width=", "use-cmh2o=", "show-plot=","show-console="
+                                                          "temp-y-max=", "temp-y-min=", "x-width=", "use-cmh2o=", "show-plot=","show-console=",
                                                           "y-autoscale=", "press-y-min-range=", "temp-y-min-range="])
     except getopt.GetoptError:
         printHelp()
