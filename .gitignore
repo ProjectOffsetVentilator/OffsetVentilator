@@ -1,0 +1,30 @@
+#########################
+# operating system
+#########################
+
+# Linux
+*~
+# KDE
+.directory
+.AppleDouble
+
+# OSX
+.DS_Store
+*.swp
+*~.nib
+# Thumbnails
+._*
+examples/ios/**/mediaAssets
+
+# Windows
+# Windows image file caches
+Thumbs.db
+# Folder config file
+Desktop.ini
+
+# Android
+.csettings
+/libs/openFrameworksCompiled/project/android/paths.make
+
+# Android Studio
+*.iml
