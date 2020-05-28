@@ -1,5 +1,7 @@
 #include <SPI.h>
 
+#define PA_TO_CM_H2O 0.0101972
+
 //Sensor's memory register addresses:
 const byte NVM_PAR_T1_7_0 = 0x31;
 const byte DATA_0    = 0x04;
@@ -19,7 +21,8 @@ typedef enum
 {
   SENSOR_1,
   SENSOR_2,
-  SENSOR_3
+  SENSOR_3,
+  SENSOR_4
 } sensor_ID_t;
 
 class SensorClusterHandler {
@@ -29,7 +32,7 @@ class SensorClusterHandler {
       chipSelects[1] = cs2;
       chipSelects[2] = cs3;
     }
-    void init() {
+    void begin() {
       // start the SPI library:
       SPI.begin();
 
@@ -79,25 +82,42 @@ class SensorClusterHandler {
       delay(500);
     }
 
-    void readSensor(bool doCalcOffset = false) {
-
-      getPressureSensorData(SENSOR_1, &temperature[SENSOR_1], &pressure[SENSOR_1]);
-      getPressureSensorData(SENSOR_2, &temperature[SENSOR_2], &pressure[SENSOR_2]);
-      getPressureSensorData(SENSOR_3, &temperature[SENSOR_3], &pressure[SENSOR_3]);
-
-      if (doCalcOffset) {
-        offset_1_3 = pressure[SENSOR_1] - pressure[SENSOR_3];
-        offset_2_3 = pressure[SENSOR_2] - pressure[SENSOR_3];
+    void readSensor(int repeat = 1, bool doCalcOffset = false) {
+      double averagePressure[] = {0,0,0,0};
+      double averageTemperature[] = {0,0,0,0};
+      for(int i = 0; i<repeat; ++i){
+        for(int s = 0; s < 3; ++s){ // !!! having 4 sensors this needs to be changed to s <= SENSOR_4
+          getPressureSensorData(s, &temperature[s], &pressure[s]);
+          averagePressure[s] += pressure[s];
+          averageTemperature[s] += temperature[s];
+        }
+      }
+      for(int s = 0; s < 3; ++s){
+        averagePressure[s] /= repeat;
+        averageTemperature[s] /= repeat;
       }
 
-      relativePressureA = pressure[SENSOR_1] - pressure[SENSOR_3] - offset_1_3;
-      relativePressureB = pressure[SENSOR_2] - pressure[SENSOR_3] - offset_2_3;
+      // pressure 4 should also be averagePressure...
+      if (doCalcOffset) {
+        pressure[SENSOR_4] = averagePressure[SENSOR_3]; // FAKE 4th Sensor.
+        offset_1 = averagePressure[SENSOR_1] - pressure[SENSOR_4];
+        offset_2 = averagePressure[SENSOR_2] - pressure[SENSOR_4];
+        offset_3 = averagePressure[SENSOR_3] - pressure[SENSOR_4];
+      }
+
+      relativePressureA = averagePressure[SENSOR_1] - pressure[SENSOR_4] - offset_1;
+      relativePressureA *= PA_TO_CM_H2O; // convert from Pa to cmH2o
+      relativePressureB = averagePressure[SENSOR_2] - pressure[SENSOR_4] - offset_2;
+      relativePressureB *= PA_TO_CM_H2O; // convert from Pa to cmH2o
+      relativePressureC = averagePressure[SENSOR_3] - pressure[SENSOR_4] - offset_3;
+      relativePressureC *= PA_TO_CM_H2O; // convert from Pa to cmH2o
       differentialPressure = relativePressureA - relativePressureB;
 
-      flow = (differentialPressure / 100) * (10 + abs(differentialPressure / 200));
+      flow = calcFlow(differentialPressure);
+      //flow = (differentialPressure / 100) * (10 + abs(differentialPressure / 200));
 
 
-/*      
+/*
        // Darrens Sensor
       const float c1 = 19.069981;
       const float c2 = 0.001515;
@@ -117,27 +137,48 @@ class SensorClusterHandler {
 */
     }
 
-    float getRelativePressureA() {
-      return relativePressureA / 100;
+    double calcFlow( float differentialPressure_cmH2O){
+      double a = 0.73;
+      double b = 7.14;
+      double c = 5.02;
+      double d = 0.6;
+      double f = 0;
+      double absDiffPress = abs(differentialPressure_cmH2O);
+      if(absDiffPress<d){
+        f = sqrt(absDiffPress/d)*(a*d*d+b*d+c);
+      } else {
+        f = a*absDiffPress*absDiffPress + b*absDiffPress + c;
+      }
+      if(differentialPressure_cmH2O<0) f*=-1;
+
+      return f;
     }
 
-    float getRelativePressureB() {
-      return relativePressureB / 100;
+    double getRelativePressureA() {
+      return relativePressureA;
     }
 
-    float getDifferentialPressure() {
-      return differentialPressure / 100;
+    double getRelativePressureB() {
+      return relativePressureB;
     }
 
-    float getPressure(sensor_ID_t sensor) {
+    double getRelativePressureC() {
+      return relativePressureC;
+    }
+
+    double getDifferentialPressure() {
+      return differentialPressure;
+    }
+
+    double getPressure(sensor_ID_t sensor) {
       return pressure[sensor];
     }
 
-    float getTemperature(sensor_ID_t sensor) {
+    double getTemperature(sensor_ID_t sensor) {
       return temperature[sensor];
     }
 
-    float getFlow() {
+    double getFlow() {
       return flow;
     }
 
@@ -145,14 +186,20 @@ class SensorClusterHandler {
   private:
 
     double temperature[3] = {0};
-    double pressure[3] = {0};
+    double pressure[4] = {0};
     double relativePressureA;
     double relativePressureB;
+    double relativePressureC;
     double differentialPressure;
-    float flow;
+    double flow;
 
-    double offset_1_3;
-    double offset_2_3;
+    double offset_1;
+    double offset_2;
+    double offset_3;
+
+
+
+    // ------ HELPER FUNCTIONS ------
 
     // pins used for the connection with the sensor
     // the other you need are controlled by the SPI library):

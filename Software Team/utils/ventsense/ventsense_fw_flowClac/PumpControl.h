@@ -52,8 +52,8 @@ class PumpControl {
     int mPwmPin;
     // Calibration procedure
     boolean doAirProcedure;
-    const int calibStates = 100;
-    const int speedUpMeasures = 5;
+    const int calibStates = 50;
+    const int speedUpMeasures = 20;
     int cntSpeedUpMeasures = 0;
     int calibState = 0;
     unsigned long calibStartTime;

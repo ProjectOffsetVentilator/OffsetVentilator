@@ -115,32 +115,39 @@
   The temperature is in degrees Celsius and the pressure is in hPa.
 */
 
-#include "SFM3200.h"
+//#include "SFM3200.h"
+#include <Wire.h>
+#include "SFM3X00.h"
+
 #include "SensorClusterHandler.h"
 #include "PumpControl.h"
 
+#define FLOW_SENSOR_ADDRESS 0x40
 
-SFM3200 sfm3200(64); // I2C pins A4 & A5
-SensorClusterHandler sensorCluster(2, 3, 4); // SPI PINS & CS1-3
-PumpControl pumpControl(6); // PWM pin
+SFM3X00 sfm3200(FLOW_SENSOR_ADDRESS);  // I2C pins A4 & A5
+
+SensorClusterHandler sensorCluster(7, 8, 9); // SPI PINS & CS1-3
+PumpControl pumpControl(10); // PWM pin
 
 unsigned long previousMillis = 0;
-const long interval = 100;          // 100 ms sample period
+const long interval = 20;          // 100 ms sample period
 
 bool doCalcDiff = false;
 
-const float filterAmt = 0.8;
+const float filterAmt = 0.0;
 float flowCalcFiltered;
 float flowSFMFiltered;
 
 
 void setup() {
-  sfm3200.init();
-  sensorCluster.init();
+  //sfm3200.init();
+  Wire.begin();
+  sfm3200.begin();
+  sensorCluster.begin();
   pumpControl.init();
 
   Serial.begin(115200);
-  Serial.println("timestamp,temp 1,press 1,temp 2,press 2,temp 3,press 3, flowSFM, flowCalc");
+  Serial.println("timestamp,temp 1,press 1,temp 2,press 2,temp 3,press 3, flowSFM, flowCalc, differentialPressure, relativePressureA, relativePressureB, relativePressureC");
 }
 
 void loop() {
@@ -162,24 +169,13 @@ void loop() {
   if (currentMillis - previousMillis >= interval) {
     pumpControl.update();
 
-    sfm3200.readSensor();
-    flowSFMFiltered = flowSFMFiltered * filterAmt + (1 - filterAmt) * sfm3200.getFlow();
+    // sfm3200.readSensor();
+    flowSFMFiltered = flowSFMFiltered * filterAmt + (1 - filterAmt) * sfm3200.readFlow();
 
-    sensorCluster.readSensor(doCalcDiff);
+    sensorCluster.readSensor(20, doCalcDiff);
     if (doCalcDiff == true) doCalcDiff = false;
 
-//    flowCalcFiltered = flowCalcFiltered * filterAmt + (1 - filterAmt) * sensorCluster.getFlow();
-
-    int num = 20;
-    flowCalcFiltered = 0;
-    for (int i = 0; i < num; i++) {
-      sensorCluster.readSensor(doCalcDiff);
-      if (doCalcDiff == true) doCalcDiff = false;
-
-       flowCalcFiltered += sensorCluster.getFlow();
-    }
-    flowCalcFiltered /= num;
-
+    flowCalcFiltered = sensorCluster.getFlow();
 
     // display the sensor data
     Serial.print(currentMillis);
@@ -199,6 +195,14 @@ void loop() {
     Serial.print(flowSFMFiltered);
     Serial.print(",");
     Serial.print(flowCalcFiltered);
+    Serial.print(",");
+    Serial.print(sensorCluster.getDifferentialPressure(),6);
+    Serial.print(",");
+    Serial.print(sensorCluster.getRelativePressureA(),6);
+    Serial.print(",");
+    Serial.print(sensorCluster.getRelativePressureB(),6);
+    Serial.print(",");
+    Serial.print(sensorCluster.getRelativePressureC(),6);
     Serial.println();
 
     previousMillis = currentMillis;
